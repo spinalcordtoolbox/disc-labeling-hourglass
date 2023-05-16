@@ -39,7 +39,8 @@ def add_gt_coordinate_to_txt_file(args):
     contrast = CONTRAST[args.contrast][0]
     txt_file = args.out_txt_file
     dir_list = os.listdir(datapath)
-    label_suffix='_labels-disc-manual'
+    label_suffix = args.suffix_label
+    img_suffix = args.suffix_img
     seg_suffix = '_seg'
     
     # Load disc_coords txt file
@@ -50,9 +51,9 @@ def add_gt_coordinate_to_txt_file(args):
     print('Adding ground truth coords')
     for dir_name in dir_list:
         if dir_name.startswith('sub'):
-            img_path = os.path.join(datapath,dir_name,dir_name + '_' + contrast + '.nii.gz')
-            label_path = os.path.join(datapath, dir_name, dir_name + '_' + contrast + label_suffix + '.nii.gz')
-            seg_path = os.path.join(datapath, dir_name, dir_name + '_' + contrast + seg_suffix + '.nii.gz' )
+            img_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + '.nii.gz')
+            label_path = os.path.join(datapath, dir_name, dir_name + img_suffix + '_' + contrast + label_suffix + '.nii.gz')
+            seg_path = os.path.join(datapath, dir_name, dir_name + img_suffix + '_' + contrast + seg_suffix + '.nii.gz' )
             if not os.path.exists(label_path) or not os.path.exists(seg_path) :
                 print(f'Error while importing {dir_name}\n {img_path} may not exist\n {label_path} may not exist, please check suffix {label_suffix}\n')
             else:
@@ -104,6 +105,10 @@ if __name__=='__main__':
     parser.add_argument('-txt', '--out-txt-file', default=os.path.abspath(os.path.join('test/files', f'{os.path.basename(parser.parse_args().datapath)}_hg{parser.parse_args().ndiscs}_discs_coords.txt')),
                         type=str, metavar='N',help='Generated txt file')
     
+    parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
+                        help='Specify label suffix (default= "_labels-disc-manual")') 
+    parser.add_argument('--suffix-img', type=str, default='',
+                        help='Specify img suffix (default= "")')
     parser.add_argument('--skeleton-dir', default=os.path.join(parser.parse_args().datapath, 'skeletons'),
                         type=str, metavar='N',help='Generated txt file')
     parser.add_argument('--train-contrasts', default=parser.parse_args().contrast, type=str, metavar='N',

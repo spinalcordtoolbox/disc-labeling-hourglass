@@ -19,6 +19,7 @@ def test_spinenet(args, test_mode=False):
     
     datapath = os.path.abspath(args.datapath)
     contrast = CONTRAST[args.contrast][0]
+    img_suffix = args.suffix_img
     
     # load in spinenet
     spnt = SpineNet(device='cuda:0', verbose=True, scan_type='whole')
@@ -37,7 +38,7 @@ def test_spinenet(args, test_mode=False):
     for dir_name in os.listdir(datapath):
         if dir_name.startswith(prefix):
             subject_name = dir_name
-            file_name = subject_name + '_' + contrast + '.nii.gz'
+            file_name = subject_name + img_suffix + '_' + contrast + '.nii.gz'
             img_path = os.path.join(datapath, dir_name, file_name)  # path to the original image
             
             # img_niftii --> 3D image: shape = (64, 320, 320)
@@ -126,13 +127,18 @@ if __name__ == '__main__':
                         help='SCT dataset path')                               
     parser.add_argument('-c', '--contrast', default='t2', type=str, metavar='N',
                         help='MRI contrast')
-    parser.add_argument('-sub', default= 'sub-perform05',
+    parser.add_argument('-sub', default= 'sub-beijingGE01',
                         type=str, metavar='N',help='Generated txt file') # 'sub-juntendo750w06'
+    
+    parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
+                        help='Specify label suffix (default= "_labels-disc-manual")') 
+    parser.add_argument('--suffix-img', type=str, default='',
+                        help='Specify img suffix (default= "")')
     
     nb_slice, img, discs_coords, vert_dicts_niftii = test_spinenet(parser.parse_args(), test_mode=True)
     fig = plt.figure(figsize=(40,40))
     for slice_idx in range(nb_slice):
-        ax = fig.add_subplot(3,4,slice_idx+1)
+        ax = fig.add_subplot(4,4,slice_idx+1)
         ax.imshow(img[:,:,slice_idx], cmap='gray')
         ax.set_title(f'Slice {slice_idx+1}', fontsize=60)
         ax.axis('off')

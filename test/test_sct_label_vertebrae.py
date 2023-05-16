@@ -15,6 +15,7 @@ def test_sct_label_vertebrae(args):
     datapath = os.path.abspath(args.datapath)
     contrast = CONTRAST[args.contrast][0]
     txt_file = args.out_txt_file
+    img_suffix = args.suffix_img
     
     # Extract txt file lines
     with open(txt_file,"r") as f:
@@ -24,7 +25,7 @@ def test_sct_label_vertebrae(args):
     print('Processing with sct_label_vertebrae')
     for dir_name in os.listdir(datapath):
         if dir_name.startswith('sub'):
-            file_name = dir_name + '_' + contrast + '.nii.gz'
+            file_name = dir_name + img_suffix + '_' + contrast + '.nii.gz'
             file_path = os.path.join(datapath, dir_name, file_name)  # path to the original image
             seg_path = file_path.replace('.nii.gz', '_seg.nii.gz')  # path to the spinal cord segmentation
             if os.path.exists(seg_path):

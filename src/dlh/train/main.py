@@ -43,18 +43,24 @@ def main(args):
     contrasts = CONTRAST[args.contrasts]
     datapath = args.datapath
     wandb_mode = args.wandb
+    label_suffix = args.suffix_label
+    img_suffix = args.suffix_img
     
     # Loading images for training and validation
     print('loading images...')
     imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(datapath=datapath, 
-                                                                                   contrasts=contrasts, 
-                                                                                   split='train', 
-                                                                                   split_ratio=args.split_ratio)
+                                                                                    contrasts=contrasts, 
+                                                                                    split='train', 
+                                                                                    split_ratio=args.split_ratio,
+                                                                                    label_suffix=label_suffix,
+                                                                                    img_suffix=img_suffix)
     
     imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(datapath=datapath, 
                                                                             contrasts=contrasts, 
                                                                             split='val', 
-                                                                            split_ratio=args.split_ratio)
+                                                                            split_ratio=args.split_ratio,
+                                                                            label_suffix=label_suffix,
+                                                                            img_suffix=img_suffix)
     
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
@@ -423,6 +429,10 @@ if __name__ == '__main__':
     parser.add_argument('--ndiscs', type=int, required=True,
                         help='Number of discs to detect')
     
+    parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
+                        help='Specify label suffix (default= "_labels-disc-manual")') 
+    parser.add_argument('--suffix-img', type=str, default='',
+                        help='Specify img suffix (default= "")')
     parser.add_argument('--wandb', default=True,
                         help='Train with wandb')
     parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
@@ -477,6 +487,6 @@ if __name__ == '__main__':
     if not os.path.exists(parser.parse_args().visual_folder):
         os.mkdir(parser.parse_args().visual_folder)
         
-    #main(parser.parse_args())  # Train the hourglass network
+    main(parser.parse_args())  # Train the hourglass network
     create_skeleton(parser.parse_args())  # Create skeleton file to improve hourglass accuracy during testing
     

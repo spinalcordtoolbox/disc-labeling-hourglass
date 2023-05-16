@@ -21,6 +21,8 @@ def test_hourglass(args):
     origin_data = args.datapath
     skeleton_dir = args.skeleton_dir
     txt_file = args.out_txt_file
+    label_suffix = args.suffix_label
+    img_suffix = args.suffix_img
     
     # Error if multiple contrasts
     if len(contrast) > 1:
@@ -32,7 +34,9 @@ def test_hourglass(args):
     imgs_test, masks_test, discs_labels_test, subjects_test, original_shapes = load_niftii_split(datapath=origin_data, 
                                                                                                 contrasts=contrast, 
                                                                                                 split='test', 
-                                                                                                split_ratio=(0.8, 0.1, 0.1))
+                                                                                                split_ratio=(0.8, 0.1, 0.1),
+                                                                                                label_suffix=label_suffix,
+                                                                                                img_suffix=img_suffix)
     norm_mean_skeleton = np.load(os.path.join(skeleton_dir, f'{train_contrasts}_Skelet_ndiscs_{ndiscs}.npy'))
     
     # Load network weights

@@ -436,7 +436,7 @@ def edit_subject_lines_txt_file(coords, txt_lines, subject_name, contrast, metho
     return txt_lines
 
 ##
-def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1, 0.1), label_suffix='_labels-disc-manual'):
+def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1, 0.1), label_suffix='_labels-disc-manual', img_suffix=''):
     '''
     This function output 3 lists corresponding to:
         - the midle slice extracted from the niftii images
@@ -478,8 +478,8 @@ def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1,
     for dir_name in dir_list[begin:end]:
         if dir_name.startswith('sub'):
             for contrast in contrasts:
-                img_path = os.path.join(datapath,dir_name,dir_name + '_' + contrast + '.nii.gz')
-                label_path = os.path.join(datapath,dir_name,dir_name + '_' + contrast + label_suffix + '.nii.gz')
+                img_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + '.nii.gz')
+                label_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + label_suffix + '.nii.gz')
                 if not os.path.exists(img_path) or not os.path.exists(label_path):
                     print(f'Error while importing {dir_name}\n {img_path} and {label_path} may not exist')
                 else:
