@@ -16,7 +16,6 @@ from dlh.utils.test_utils import CONTRAST, extract_skeleton, swap_y_origin, proj
 def test_hourglass(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     contrast = CONTRAST[args.contrast]
-    train_contrasts = args.train_contrasts
     ndiscs = args.ndiscs
     origin_data = args.datapath
     skeleton_dir = args.skeleton_dir
@@ -24,10 +23,16 @@ def test_hourglass(args):
     label_suffix = args.suffix_label
     img_suffix = args.suffix_img
     
-    # Error if multiple contrasts
+    # Error if multiple contrasts for DATA selected
     if len(contrast) > 1:
-        print(f'Only one contrast may be selected with args.contrast, {len(contrast)} were selected')
+        print(f'Only one test contrast may be selected with args.contrast, {len(contrast)} were selected')
         sys.exit(1)
+
+    # Handle multiple contrast for hourglass WEIGHTS
+    if args.train_contrasts == 'all':
+        train_contrasts = list(CONTRAST.keys())
+    else:
+        train_contrasts = [args.train_contrasts]
     
     # Loading image paths
     print('loading images...')
@@ -37,64 +42,73 @@ def test_hourglass(args):
                                                                                                 split_ratio=(0.8, 0.1, 0.1),
                                                                                                 label_suffix=label_suffix,
                                                                                                 img_suffix=img_suffix)
-    norm_mean_skeleton = np.load(os.path.join(skeleton_dir, f'{train_contrasts}_Skelet_ndiscs_{ndiscs}.npy'))
     
-    # Load network weights
-    if args.att:
-        model = atthg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=ndiscs)
-        model = torch.nn.DataParallel(model).to(device)
-        model.load_state_dict(torch.load(f'src/dlh/weights/model_{train_contrasts}_att_stacks_{args.stacks}_ndiscs_{ndiscs}', map_location='cpu')['model_weights'])
-    else:
-        model = hg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=ndiscs)
-        model = torch.nn.DataParallel(model).to(device)
-        model.load_state_dict(torch.load(f'src/dlh/weights/model_{train_contrasts}_stacks_{args.stacks}_ndiscs_{ndiscs}', map_location='cpu')['model_weights'])
+    for train_contrast in train_contrasts:
+        path_skeleton = os.path.join(skeleton_dir, f'{train_contrast}_Skelet_ndiscs_{ndiscs}.npy')
+        
+        # Verify if skeleton exists before running test
+        if os.path.exists(path_skeleton):
+            norm_mean_skeleton = np.load(path_skeleton)
+            
+            # Load network weights
+            if args.att:
+                model = atthg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=ndiscs)
+                model = torch.nn.DataParallel(model).to(device)
+                model.load_state_dict(torch.load(f'src/dlh/weights/model_{train_contrast}_att_stacks_{args.stacks}_ndiscs_{ndiscs}', map_location='cpu')['model_weights'])
+            else:
+                model = hg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=ndiscs)
+                model = torch.nn.DataParallel(model).to(device)
+                model.load_state_dict(torch.load(f'src/dlh/weights/model_{train_contrast}_stacks_{args.stacks}_ndiscs_{ndiscs}', map_location='cpu')['model_weights'])
 
-    # Create Dataloader
-    full_dataset_test = image_Dataset(images=imgs_test, 
-                                       targets=masks_test,
-                                       discs_labels_list=discs_labels_test,
-                                       subjects_names=subjects_test,
-                                       num_channel=args.ndiscs,
-                                       use_flip = False,
-                                       load_mode='test'
-                                      ) 
-    MRI_test_loader   = DataLoader(full_dataset_test, 
-                                   batch_size= 1, 
-                                   shuffle=False, 
-                                   num_workers=0
-                                   )
-    model.eval()
-    
-    # Load disc_coords txt file
-    with open(txt_file,"r") as f:  # Checking already processed subjects from txt file
-        file_lines = f.readlines()
-        split_lines = [line.split(' ') for line in file_lines]
-    
-    # Extract discs coordinates from the test set
-    print('Processing with hourglass')
-    for i, (inputs, targets, vis, gt_coord, subject_name) in enumerate(MRI_test_loader): # subject_name
-        inputs, targets = inputs.to(device), targets.to(device, non_blocking=True)
-        output = model(inputs) 
-        output = output[-1]
-        subject_name = subject_name[0]
-        
-        prediction, pred_discs_coords = extract_skeleton(inputs, output, targets, norm_mean_skeleton, ndiscs, Flag_save=True)
-        
-        # Convert pred_discs_coords to original image size
-        pred_shape = prediction[0,0].shape 
-        original_shape = original_shapes[i] 
-        pred = np.array([[(round(coord[0])/pred_shape[0])*original_shape[0], (round(coord[1])/pred_shape[1])*original_shape[1], int(disc_num)] for disc_num, coord in pred_discs_coords[0].items()]).astype(int)
-        
-        # Project coordinate onto the spinal cord centerline
-        seg_path = os.path.join(origin_data, subject_name, f'{subject_name}_{contrast[0]}_seg.nii.gz' )
-        pred = project_on_spinal_cord(coords=pred, seg_path=seg_path, disc_num=True, proj_2d=True)
-        
-        # Swap axis prediction and ground truth
-        pred = swap_y_origin(coords=pred, img_shape=original_shape, y_pos=0).astype(int)  # Move y origin to the bottom of the image like Niftii convention
-        
-        # Edit coordinates in txt file
-        # line = subject_name contrast disc_num gt_coords sct_discs_coords hourglass_coords spinenet_coords
-        split_lines = edit_subject_lines_txt_file(coords=pred, txt_lines=split_lines, subject_name=subject_name, contrast=contrast[0], method_name='hourglass_coords')
+            # Create Dataloader
+            full_dataset_test = image_Dataset(images=imgs_test, 
+                                            targets=masks_test,
+                                            discs_labels_list=discs_labels_test,
+                                            subjects_names=subjects_test,
+                                            num_channel=args.ndiscs,
+                                            use_flip = False,
+                                            load_mode='test'
+                                            ) 
+            MRI_test_loader   = DataLoader(full_dataset_test, 
+                                        batch_size= 1, 
+                                        shuffle=False, 
+                                        num_workers=0
+                                        )
+            model.eval()
+            
+            # Load disc_coords txt file
+            with open(txt_file,"r") as f:  # Checking already processed subjects from txt file
+                file_lines = f.readlines()
+                split_lines = [line.split(' ') for line in file_lines]
+            
+            # Extract discs coordinates from the test set
+            print('Processing with hourglass')
+            for i, (inputs, targets, vis, gt_coord, subject_name) in enumerate(MRI_test_loader): # subject_name
+                inputs, targets = inputs.to(device), targets.to(device, non_blocking=True)
+                output = model(inputs) 
+                output = output[-1]
+                subject_name = subject_name[0]
+                
+                prediction, pred_discs_coords = extract_skeleton(inputs, output, targets, norm_mean_skeleton, ndiscs, Flag_save=True)
+                
+                # Convert pred_discs_coords to original image size
+                pred_shape = prediction[0,0].shape 
+                original_shape = original_shapes[i] 
+                pred = np.array([[(round(coord[0])/pred_shape[0])*original_shape[0], (round(coord[1])/pred_shape[1])*original_shape[1], int(disc_num)] for disc_num, coord in pred_discs_coords[0].items()]).astype(int)
+                
+                # Project coordinate onto the spinal cord centerline
+                seg_path = os.path.join(origin_data, subject_name, f'{subject_name}_{contrast[0]}_seg.nii.gz' )
+                pred = project_on_spinal_cord(coords=pred, seg_path=seg_path, disc_num=True, proj_2d=True)
+                
+                # Swap axis prediction and ground truth
+                pred = swap_y_origin(coords=pred, img_shape=original_shape, y_pos=0).astype(int)  # Move y origin to the bottom of the image like Niftii convention
+                
+                # Edit coordinates in txt file
+                # line = subject_name contrast disc_num gt_coords sct_discs_coords spinenet_coords hourglass_t1_coords hourglass_t2_coords hourglass_t1_t2_coords
+                split_lines = edit_subject_lines_txt_file(coords=pred, txt_lines=split_lines, subject_name=subject_name, contrast=contrast[0], method_name=f'hourglass_{train_contrast}_coords')
+        else:
+            print(f'Path to skeleton {path_skeleton} does not exist'
+                  f'Please check if contrasts {train_contrast} was used for training')     
                 
     for num in range(len(split_lines)):
         split_lines[num] = ' '.join(split_lines[num])
