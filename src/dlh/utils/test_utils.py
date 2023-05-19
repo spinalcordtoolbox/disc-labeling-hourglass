@@ -260,7 +260,7 @@ def swap_y_origin(coords, img_shape, y_pos=1):
     '''
     This function returns a list of coords where the y origin coords was moved from top and bottom
     '''
-    y_shape = img_shape[1]
+    y_shape = img_shape[0]
     coords[:,y_pos] = y_shape - coords[:,y_pos]
     return coords
 
@@ -396,6 +396,7 @@ def edit_subject_lines_txt_file(coords, txt_lines, subject_name, contrast, metho
     methods = txt_lines[0][:]
     methods[-1] = methods[-1].replace('\n','')
     method_idx = methods.index(method_name)
+    nb_methods = len(methods) - 3 # The 3 first elements correspond to subject disc_num and contrast
     if method_idx == len(methods)-1:
         end_of_line = '\n'
     else:
@@ -418,7 +419,7 @@ def edit_subject_lines_txt_file(coords, txt_lines, subject_name, contrast, metho
             for disc_num in coords[:,-1]:
                 if disc_num > max_ref_disc:
                     print(f'Disc number {disc_num} was added')
-                    new_line = [subject_name, contrast, str(disc_num), 'None', 'None', 'None', 'None\n']
+                    new_line = [subject_name, contrast, str(disc_num)] + ['None']*(nb_methods-1) + ['None\n']
                     disc_shift = disc_num - max_ref_disc # Check if discs are missing between in the text file
                     if disc_shift != 1:
                         print(f'Adding {disc_shift-1} intermediate discs to txt file')
