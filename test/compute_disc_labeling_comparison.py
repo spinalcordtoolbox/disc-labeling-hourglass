@@ -2,18 +2,20 @@ import os
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 from spinalcordtoolbox.image import Image
 import csv
+import pandas as pd
 
-from dlh.utils.metrics import compute_L2_error, compute_z_error, compute_TP_and_FP, compute_TN_and_FN
-from dlh.utils.test_utils import CONTRAST, visualize_discs, str2array, check_missing_discs
+from dlh.utils.test_utils import CONTRAST, visualize_discs, edit_metric_csv
 
 def compare_methods(args):
     if args.datapath != None:
         datapath = args.datapath
-    contrast = CONTRAST[args.modality]
+    contrast = CONTRAST[args.modality][0]
     txt_file_path = args.input_txt_file
     output_folder = os.path.join(args.output_folder, f'out_{contrast}')
+    computed_methods = args.computed_methods
     
     # Create output folder
     if not os.path.exists(output_folder):
@@ -22,287 +24,32 @@ def compare_methods(args):
     # Load disc_coords txt file
     with open(txt_file_path,"r") as f:  # Checking already processed subjects from txt file
         file_lines = f.readlines()
-        split_lines = np.array([line.split(' ') for line in file_lines])
+        split_lines = [line.split(' ') for line in file_lines]
     
     # Extract processed subjects --> subjects with a ground truth
     # line = subject_name contrast disc_num ground_truth_coord sct_label_vertebrae_coord hourglass_coord spinenet_coord
     processed_subjects = []
     for line in split_lines[1:]:
-        if (line[0] not in processed_subjects) and (line[1]==contrast) and (line[3]!='None'):
+        if (line[0] not in processed_subjects) and (line[1]==contrast) and (line[7]!='None'): # 3rd colum corresponds to ground truth coordinates
             processed_subjects.append(line[0])
     
     # Initialize metrics
     methods_results = {}
     
-    ## Init total to result dict
-    methods_results['total'] = {}
-    
-    # Init L2 error
-    methods_results['total']['l2_mean_hg'] = 0
-    methods_results['total']['l2_mean_sct'] = 0
-    methods_results['total']['l2_mean_spn'] = 0
-    methods_results['total']['l2_std_hg'] = 0
-    methods_results['total']['l2_std_sct'] = 0
-    methods_results['total']['l2_std_spn'] = 0
-    
-    # Init Z error
-    methods_results['total']['z_mean_hg'] = 0
-    methods_results['total']['z_mean_sct'] = 0
-    methods_results['total']['z_mean_spn'] = 0
-    methods_results['total']['z_std_hg'] = 0
-    methods_results['total']['z_std_sct'] = 0
-    methods_results['total']['z_std_spn'] = 0
-    
-    # Init true positive rate
-    methods_results['total']['TPR_hg'] = 0
-    methods_results['total']['TPR_sct'] = 0
-    methods_results['total']['TPR_spn'] = 0
-    
-    # Init false positive rate
-    methods_results['total']['FPR_hg'] = 0
-    methods_results['total']['FPR_sct'] = 0
-    methods_results['total']['FPR_spn'] = 0
-    
-    # Init true negative rate
-    methods_results['total']['TNR_hg'] = 0
-    methods_results['total']['TNR_sct'] = 0
-    methods_results['total']['TNR_spn'] = 0
-    
-    # Init false negative rate
-    methods_results['total']['FNR_hg'] = 0
-    methods_results['total']['FNR_sct'] = 0
-    methods_results['total']['FNR_spn'] = 0
-    
-    # Init dice score
-    methods_results['total']['DSC_hg'] = 0
-    methods_results['total']['DSC_sct'] = 0
-    methods_results['total']['DSC_spn'] = 0
-    
-    for subject in processed_subjects:
-        # Extract str coords and convert to numpy array, None stands for fail detections
-        # line = subject_name contrast disc_num ground_truth_coord sct_label_vertebrae_coord hourglass_coord spinenet_coord
-        discs_list = np.extract(split_lines[:,0] == subject,split_lines[:,2]).astype(int)
-        sct_coords_list = str2array(np.extract(split_lines[:,0] == subject,split_lines[:,4]))
-        hg_coords_list = str2array(np.extract(split_lines[:,0] == subject,split_lines[:,5]))
-        gt_coords_list = str2array(np.extract(split_lines[:,0] == subject,split_lines[:,3])) 
-        spn_coords_list = str2array(np.extract(split_lines[:,0] == subject,split_lines[:,6])) 
-        
-        # Check for missing ground truth (only ground truth detections are considered as real discs)
-        _, gt_missing_discs = check_missing_discs(gt_coords_list) # Numpy array of coordinates without missing detections + list of missing discs
-         
-        # Check for missing discs predictions
-        sct_discs_list, sct_missing_discs = check_missing_discs(sct_coords_list) # Numpy array of coordinates without missing detections + list of missing discs
-        hg_discs_list, hg_missing_discs = check_missing_discs(hg_coords_list) # Numpy array of coordinates without missing detections + list of missing discs
-        spn_discs_list, spn_missing_discs = check_missing_discs(spn_coords_list) # Numpy array of coordinates without missing detections + list of missing discs
-        
-        # Calculate total prediction and true number of discs
-        total_discs = discs_list.shape[0] - gt_missing_discs.shape[0]
-        total_pred_sct = discs_list.shape[0] - sct_missing_discs.shape[0]
-        total_pred_hg = discs_list.shape[0] - hg_missing_discs.shape[0]
-        total_pred_spn = discs_list.shape[0] - spn_missing_discs.shape[0]
-        
-        # Visualize discs on image
-        if args.datapath != None:
-            img_3D = Image(os.path.join(datapath, subject, f'{subject}_{contrast}.nii.gz')).data
-            shape = img_3D.shape
-            img_2D = np.rot90(img_3D[shape[0]//2, :, :]) # Rotate image to good position
-            if sct_discs_list.size != 0: # Check if not empty
-                visualize_discs(input_img=img_2D, coords_list=sct_discs_list, out_path=os.path.join(output_folder, f'{subject}_sct.png'))
-            if hg_discs_list.size != 0: # Check if not empty
-                visualize_discs(input_img=img_2D, coords_list=hg_discs_list, out_path=os.path.join(output_folder, f'{subject}_hg.png'))
-            if spn_discs_list.size != 0: # Check if not empty
-                visualize_discs(input_img=img_2D, coords_list=spn_discs_list, out_path=os.path.join(output_folder, f'{subject}_spn.png'))
+    nb_subjects = len(processed_subjects)
+    for method in computed_methods:
+        print(f"Computing method {method}")
+        for subject in processed_subjects:
+            methods_results, pred_discs_list = edit_metric_csv(methods_results, txt_lines=split_lines, subject_name=subject, contrast=contrast, method_name=method, nb_subjects=nb_subjects)
             
-        # Concatenate all the missing discs to compute metrics
-        sct_and_gt_missing_discs = np.unique(np.append(sct_missing_discs, gt_missing_discs))
-        hg_and_gt_missing_discs = np.unique(np.append(hg_missing_discs, gt_missing_discs))
-        spn_and_gt_missing_discs = np.unique(np.append(spn_missing_discs, gt_missing_discs))
-        sct_and_gt_missing_idx = np.in1d(discs_list, sct_and_gt_missing_discs) # get discs idx
-        hg_and_gt_missing_idx = np.in1d(discs_list, hg_and_gt_missing_discs) # get discs idx
-        spn_and_gt_missing_idx = np.in1d(discs_list, spn_and_gt_missing_discs) # get discs idx
-
-        # Keep only coordinates that are present in both ground truth and prediction
-        sct_coords_list = np.array(sct_coords_list[~sct_and_gt_missing_idx].tolist())
-        hg_coords_list = np.array(hg_coords_list[~hg_and_gt_missing_idx].tolist())
-        spn_coords_list = np.array(spn_coords_list[~spn_and_gt_missing_idx].tolist())
-        
-        # Add subject to result dict
-        methods_results[subject] = {}
-        
-        #-------------------------#
-        # Compute L2 error
-        #-------------------------#
-        l2_hourglass = compute_L2_error(gt=np.array(gt_coords_list[~hg_and_gt_missing_idx].tolist()), pred=hg_coords_list) # gt_coords_list[~hg_and_gt_missing_idx] to keep only coordinates that are present in both ground truth and prediction
-        l2_sct = compute_L2_error(gt=np.array(gt_coords_list[~sct_and_gt_missing_idx].tolist()), pred=sct_coords_list) 
-        l2_spn = compute_L2_error(gt=np.array(gt_coords_list[~spn_and_gt_missing_idx].tolist()), pred=spn_coords_list) 
-        
-        # Compute L2 error mean and std
-        l2_hourglass_mean = np.mean(l2_hourglass) if l2_hourglass.size != 0 else 0
-        l2_sct_mean = np.mean(l2_sct) if l2_sct.size != 0 else 0
-        l2_spn_mean = np.mean(l2_spn) if l2_spn.size != 0 else 0
-        l2_hourglass_std = np.std(l2_hourglass) if l2_hourglass.size != 0 else 0
-        l2_sct_std = np.std(l2_sct) if l2_sct.size != 0 else 0
-        l2_spn_std = np.std(l2_spn) if l2_spn.size != 0 else 0
-        
-        #--------------------------------#
-        # Compute Z error
-        #--------------------------------#
-        z_err_hourglass = compute_z_error(gt=np.array(gt_coords_list[~hg_and_gt_missing_idx].tolist()), pred=hg_coords_list) # gt_coords_list[~hg_and_gt_missing_idx] to keep only coordinates that are present in both ground truth and prediction
-        z_err_sct = compute_z_error(gt=np.array(gt_coords_list[~sct_and_gt_missing_idx].tolist()), pred=sct_coords_list)
-        z_err_spn = compute_z_error(gt=np.array(gt_coords_list[~spn_and_gt_missing_idx].tolist()), pred=spn_coords_list)
-        
-        # Compute z error mean and std
-        z_err_hourglass_mean = np.mean(z_err_hourglass) if z_err_hourglass.size != 0 else 0
-        z_err_sct_mean = np.mean(z_err_sct) if z_err_sct.size != 0 else 0
-        z_err_spn_mean = np.mean(z_err_spn) if z_err_spn.size != 0 else 0
-        z_err_hourglass_std = np.std(z_err_hourglass) if z_err_hourglass.size != 0 else 0
-        z_err_sct_std = np.std(z_err_sct) if z_err_sct.size != 0 else 0
-        z_err_spn_std = np.std(z_err_spn) if z_err_spn.size != 0 else 0
-        
-        #----------------------------------------------------#
-        # Compute true and false positive rate (TPR and FPR)
-        #----------------------------------------------------#
-        sct_pred_discs = discs_list[~np.in1d(discs_list, sct_missing_discs)]
-        hg_pred_discs = discs_list[~np.in1d(discs_list, hg_missing_discs)]
-        spn_pred_discs = discs_list[~np.in1d(discs_list, spn_missing_discs)]
-        gt_pred_discs = discs_list[~np.in1d(discs_list, gt_missing_discs)]
-    
-        TP_sct, FP_sct, FP_list_sct = compute_TP_and_FP(discs_gt=gt_pred_discs, discs_pred=sct_pred_discs)
-        TP_hg, FP_hg, FP_list_hg = compute_TP_and_FP(discs_gt=gt_pred_discs, discs_pred=hg_pred_discs)
-        TP_spn, FP_spn, FP_list_spn = compute_TP_and_FP(discs_gt=gt_pred_discs, discs_pred=spn_pred_discs)
-        
-        FPR_sct = FP_sct/total_pred_sct if total_pred_sct != 0 else 0
-        FPR_hg = FP_hg/total_pred_hg if total_pred_hg != 0 else 0
-        FPR_spn = FP_spn/total_pred_spn if total_pred_spn != 0 else 0
-        
-        TPR_sct = TP_sct/total_pred_sct if total_pred_sct != 0 else 0
-        TPR_hg = TP_hg/total_pred_hg if total_pred_hg != 0 else 0
-        TPR_spn = TP_spn/total_pred_spn if total_pred_spn != 0 else 0
-        
-        #----------------------------------------------------#
-        # Compute true and false negative rate (TNR and FNR)
-        #----------------------------------------------------#
-        TN_sct, FN_sct, FN_list_sct = compute_TN_and_FN(missing_gt=gt_missing_discs, missing_pred=sct_missing_discs)
-        TN_hg, FN_hg, FN_list_hg = compute_TN_and_FN(missing_gt=gt_missing_discs, missing_pred=hg_missing_discs)
-        TN_spn, FN_spn, FN_list_spn = compute_TN_and_FN(missing_gt=gt_missing_discs, missing_pred=spn_missing_discs)
-        
-        FNR_sct = FN_sct/total_pred_sct if total_pred_sct != 0 else 1
-        FNR_hg = FN_hg/total_pred_hg if total_pred_hg != 0 else 1
-        FNR_spn = FN_spn/total_pred_spn if total_pred_spn != 0 else 1
-        
-        TNR_sct = TN_sct/total_pred_sct if total_pred_sct != 0 else 1
-        TNR_hg = TN_hg/total_pred_hg if total_pred_hg != 0 else 1
-        TNR_spn = TN_spn/total_pred_spn if total_pred_spn != 0 else 1
-        
-        #-------------------------------------------#
-        # Compute dice score : DSC=2TP/(2TP+FP+FN)
-        #-------------------------------------------#
-        DSC_sct = 2*TP_sct/(2*TP_sct+FP_sct+FN_sct)
-        DSC_hg = 2*TP_hg/(2*TP_hg+FP_hg+FN_hg)
-        DSC_spn = 2*TP_spn/(2*TP_spn+FP_spn+FN_spn)
-        
-        ###################################
-        # Add computed metrics to subject #
-        ###################################
-        
-        # Add L2 error
-        methods_results[subject]['l2_mean_hg'] = l2_hourglass_mean
-        methods_results[subject]['l2_mean_sct'] = l2_sct_mean
-        methods_results[subject]['l2_mean_spn'] = l2_spn_mean
-        methods_results[subject]['l2_std_hg'] = l2_hourglass_std
-        methods_results[subject]['l2_std_sct'] = l2_sct_std
-        methods_results[subject]['l2_std_spn'] = l2_spn_std
-        
-        # Add Z error
-        methods_results[subject]['z_mean_hg'] = z_err_hourglass_mean
-        methods_results[subject]['z_mean_sct'] = z_err_sct_mean
-        methods_results[subject]['z_mean_spn'] = z_err_spn_mean
-        methods_results[subject]['z_std_hg'] = z_err_hourglass_std
-        methods_results[subject]['z_std_sct'] = z_err_sct_std
-        methods_results[subject]['z_std_spn'] = z_err_spn_std
-        
-        # Add true positive rate
-        methods_results[subject]['TPR_hg'] = TPR_hg
-        methods_results[subject]['TPR_sct'] = TPR_sct
-        methods_results[subject]['TPR_spn'] = TPR_spn
-        
-        # Add false positive rate and FP list
-        methods_results[subject]['FP_list_hg'] = FP_list_hg
-        methods_results[subject]['FP_list_sct'] = FP_list_sct
-        methods_results[subject]['FP_list_spn'] = FP_list_spn
-        methods_results[subject]['FPR_hg'] = FPR_hg
-        methods_results[subject]['FPR_sct'] = FPR_sct
-        methods_results[subject]['FPR_spn'] = FPR_spn
-        
-        # Add true negative rate
-        methods_results[subject]['TNR_hg'] = TNR_hg
-        methods_results[subject]['TNR_sct'] = TNR_sct
-        methods_results[subject]['TNR_spn'] = TNR_spn
-        
-        # Add false negative rate and FN list
-        methods_results[subject]['FN_list_hg'] = FN_list_hg
-        methods_results[subject]['FN_list_sct'] = FN_list_sct
-        methods_results[subject]['FN_list_spn'] = FN_list_spn
-        methods_results[subject]['FNR_hg'] = FNR_hg
-        methods_results[subject]['FNR_sct'] = FNR_sct
-        methods_results[subject]['FNR_spn'] = FNR_spn
-        
-        # Add dice score
-        methods_results[subject]['DSC_hg'] = DSC_hg
-        methods_results[subject]['DSC_sct'] = DSC_sct
-        methods_results[subject]['DSC_spn'] = DSC_spn
-        
-        methods_results[subject]['tot_discs'] = total_discs
-        methods_results[subject]['tot_pred_sct'] = total_pred_sct
-        methods_results[subject]['tot_pred_hg'] = total_pred_hg
-        methods_results[subject]['tot_pred_spn'] = total_pred_spn
-    
-        #####################################
-        # Add total mean of computed metrics#
-        #####################################
-        
-        total = len(processed_subjects)
-        
-        # Add L2 error
-        methods_results['total']['l2_mean_hg'] += l2_hourglass_mean/total
-        methods_results['total']['l2_mean_sct'] += l2_sct_mean/total
-        methods_results['total']['l2_mean_spn'] += l2_spn_mean/total
-        methods_results['total']['l2_std_hg'] += l2_hourglass_std/total
-        methods_results['total']['l2_std_sct'] += l2_sct_std/total
-        methods_results['total']['l2_std_spn'] += l2_spn_std/total
-        
-        # Add Z error
-        methods_results['total']['z_mean_hg'] += z_err_hourglass_mean/total
-        methods_results['total']['z_mean_sct'] += z_err_sct_mean/total
-        methods_results['total']['z_mean_spn'] += z_err_spn_mean/total
-        methods_results['total']['z_std_hg'] += z_err_hourglass_std/total
-        methods_results['total']['z_std_sct'] += z_err_sct_std/total
-        methods_results['total']['z_std_spn'] += z_err_spn_std/total
-        
-        # Add true positive rate
-        methods_results['total']['TPR_hg'] += TPR_hg/total
-        methods_results['total']['TPR_sct'] += TPR_sct/total
-        methods_results['total']['TPR_spn'] += TPR_spn/total
-        
-        # Add false positive rate
-        methods_results['total']['FPR_hg'] += FPR_hg/total
-        methods_results['total']['FPR_sct'] += FPR_sct/total
-        methods_results['total']['FPR_spn'] += FPR_spn/total
-        
-        # Add true negative rate
-        methods_results['total']['TNR_hg'] += TNR_hg/total
-        methods_results['total']['TNR_sct'] += TNR_sct/total
-        methods_results['total']['TNR_spn'] += TNR_spn/total
-        
-        # Add false negative rate
-        methods_results['total']['FNR_hg'] += FNR_hg/total
-        methods_results['total']['FNR_sct'] += FNR_sct/total
-        methods_results['total']['FNR_spn'] += FNR_spn/total
-        
-        # Add dice score
-        methods_results['total']['DSC_hg'] += DSC_hg/total
-        methods_results['total']['DSC_sct'] += DSC_sct/total
-        methods_results['total']['DSC_spn'] += DSC_spn/total
+            # Visualize discs on image
+            if args.datapath != None:
+                img_3D = Image(os.path.join(datapath, subject, f'{subject}_{contrast}.nii.gz')).change_orientation('RSP').data
+                shape = img_3D.shape
+                img_2D = img_3D[shape[0]//2, :, :]
+                if pred_discs_list.size != 0: # Check if not empty
+                    visualize_discs(input_img=img_2D, coords_list=pred_discs_list, out_path=os.path.join(output_folder, f'{subject}_{method}.png'))
+            
     
     if args.create_csv:
         # Get fields for csv conversion    
@@ -314,116 +61,111 @@ def compare_methods(args):
             w.writeheader()
             for k,d in sorted(methods_results.items()):
                 w.writerow(mergedict({'subject': k},d))
-        
-    save_graphs(output_folder, methods_results)
+    
+    methods_short = [method.split('_coords')[0] for method in computed_methods] # Remove '_coords' suffix
+    save_graphs(output_folder, methods_results, methods_short)
     return
 
 def mergedict(a,b):
     a.update(b)
     return a
 
-def save_graphs(output_folder, methods_results):
-    # ASD and Hausdorff
+def save_graphs(output_folder, methods_results, methods_list):
     # Isolate total dict 
     dict_total = methods_results['total']
     del methods_results['total']
-    
+            
     # Extract subjects and metrics
     subjects, subject_metrics = np.array(list(methods_results.keys())), list(methods_results.values())
     metrics_name = np.array(list(subject_metrics[0].keys()))
     metrics_values = np.array([list(sub_metrics.values()) for sub_metrics in subject_metrics])
-        
-    # Save L2 error
-    l2_mean_hg_idx = np.where(metrics_name == 'l2_mean_hg')[0][0]
-    l2_mean_sct_idx = np.where(metrics_name == 'l2_mean_sct')[0][0]
-    l2_mean_spn_idx = np.where(metrics_name == 'l2_mean_spn')[0][0]
+    
+    # Plot total graph
+    # L2 error
+    l2_error = [metrics_values[:,np.where(metrics_name == f'l2_mean_{method}')[0][0]] for method in methods_list]
+    l2_mean = [dict_total[f'l2_mean_{method}'] for method in methods_list]
+    l2_std = [dict_total[f'l2_std_{method}'] for method in methods_list]
     out_path = os.path.join(output_folder,'l2_error.png')
-    save_bar(subjects, 
-             y1=metrics_values[:,l2_mean_hg_idx], 
-             y2=metrics_values[:,l2_mean_sct_idx], 
-             y3=metrics_values[:,l2_mean_spn_idx], 
-             output_path=out_path, 
-             x_axis='Subjects', 
-             y_axis='L2 error (pixels)', 
-             label1 ='hourglass_network', 
-             label2 ='sct_label_vertebrae', 
-             label3 ='spinenetv2_label_vertebrae'
-             )
+    #save_bar(methods=methods_list, mean=l2_mean, std=l2_std, output_path=out_path, x_axis='Methods', y_axis='L2_error (pixels)')
+    save_violin(methods=methods_list, values=l2_error, output_path=out_path, x_axis='Methods', y_axis='L2_error (pixels)')
     
-    # Save z error
-    z_mean_hg_idx = np.where(metrics_name == 'z_mean_hg')[0][0]
-    z_mean_sct_idx = np.where(metrics_name == 'z_mean_sct')[0][0]
-    z_mean_spn_idx = np.where(metrics_name == 'z_mean_spn')[0][0]
-    out_path = os.path.join(output_folder,'z_error.png')
-    save_bar(subjects,
-             y1=metrics_values[:,z_mean_hg_idx],
-             y2=metrics_values[:,z_mean_sct_idx],
-             y3=metrics_values[:,z_mean_spn_idx],
-             output_path=out_path, 
-             x_axis='Subjects', 
-             y_axis='z error (pixels)', 
-             label1 ='hourglass_network', 
-             label2 ='sct_label_vertebrae', 
-             label3 ='spinenetv2_label_vertebrae'
-             )
-    
-    # Save total Dice score DSC
-    DSC_hg = dict_total['DSC_hg']
-    DSC_sct = dict_total['DSC_sct']
-    DSC_spn = dict_total['DSC_spn']
-    out_path = os.path.join(output_folder,'labels_dice_score.png')
-    save_bar(x='Total',
-             y1=DSC_hg,
-             y2=DSC_sct,
-             y3=DSC_spn,
-             output_path=out_path,
-             x_axis='Total', 
-             y_axis='Labels accuracy using DSC', 
-             label1 ='hourglass_network', 
-             label2 ='sct_label_vertebrae', 
-             label3 ='spinenetv2_label_vertebrae'
-             )
+    # # Save total Dice score DSC
+    # DSC_hg = dict_total['DSC_hg']
+    # DSC_sct = dict_total['DSC_sct']
+    # DSC_spn = dict_total['DSC_spn']
+    # out_path = os.path.join(output_folder,'labels_dice_score.png')
+    # save_bar(x='Total',
+    #          y1=DSC_hg,
+    #          y2=DSC_sct,
+    #          y3=DSC_spn,
+    #          output_path=out_path,
+    #          x_axis='Total', 
+    #          y_axis='Labels accuracy using DSC', 
+    #          label1 ='hourglass_network', 
+    #          label2 ='sct_label_vertebrae', 
+    #          label3 ='spinenetv2_label_vertebrae'
+    #          )
 
     
-def save_bar(x, y1, y2, y3, output_path, x_axis='Subjects', y_axis='L2_error (pixels)', label1 ='Hourglass_network', label2 ='sct_label_vertebrae', label3 ='spinenetv2_label_vertebrae'):
+def save_bar(methods, mean, std, output_path, x_axis='Subjects', y_axis='L2_error (pixels)'):
+    '''
+    Create a bar graph
+    :param methods: String list of the methods name
+    :param mean: List of the mean corresponding to the methods name
+    :param str: List of the str corresponding to the methods name
+    :param output_path: Path to output folder where figures will be stored
+    :param x_axis: x-axis name
+    :param y_axis: y-axis name
+    '''
+    
     # set width of bar
-    if type(x) == np.ndarray:
-        barWidth = 0.25
-        plt.figure(figsize =(len(x), 10))
-        plt.subplots_adjust(bottom=0.2, top=0.9, left=0.05, right=0.95)
-    else:
-        barWidth = 0.05
-        plt.figure(figsize =(10, 10))
+    barWidth = 0.25
+    plt.figure(figsize =(len(methods), 10))
+    #plt.subplots_adjust(bottom=0.2, top=0.9, left=0.05, right=0.95)
         
     # Set position of bar on X axis
-    if type(x) == np.ndarray:
-        br1 = np.arange(len(x))
-    else:
-        br1 = [0]
-    br2 = [x + barWidth for x in br1]
-    br3 = [x - barWidth for x in br1]
+    br1 = np.arange(len(methods))
     
-    # Make the plot        
-    plt.bar(br1, y1, color='b', width = barWidth, edgecolor ='grey', label=label1)
-    plt.bar(br2, y2, color='r', width = barWidth, edgecolor ='grey', label=label2)
-    plt.bar(br3, y3, color='g', width = barWidth, edgecolor ='grey', label=label3)
-    plt.title(y_axis, fontweight ='bold', fontsize = 50 if type(x) == np.ndarray else 20)
-    
-    # Set y axis limit 
-    if type(x) == np.ndarray:
-        plt.ylim([0, 20])
+    # Make the plot 
+    fig, ax = plt.subplots()      
+    ax.bar(br1, mean, yerr=std, align='center', color='b', width = barWidth, edgecolor ='grey')
+    plt.title(y_axis, fontweight ='bold', fontsize = 20)
     
     # Create axis and adding Xticks
-    plt.xlabel(x_axis, fontweight ='bold', fontsize = 30 if type(x) == np.ndarray else 15)
-    plt.ylabel(y_axis, fontweight ='bold', fontsize = 30 if type(x) == np.ndarray else 15)
-    if type(x) == np.ndarray:
-        plt.xticks([r for r in range(len(x))], x, rotation=70)
-    else:
-        plt.xticks([])
+    plt.xlabel(x_axis, fontweight ='bold', fontsize = 15)
+    plt.ylabel(y_axis, fontweight ='bold', fontsize = 15)
+    plt.xticks([r for r in range(len(methods))], methods)
     
     # Save plot
     plt.legend()
     plt.savefig(output_path)
+
+
+def save_violin(methods, values, output_path, x_axis='Subjects', y_axis='L2_error (pixels)'):
+    '''
+    Create a bar graph
+    :param methods: String list of the methods name
+    :param values: Values associated with the methods
+    :param output_path: Path to output folder where figures will be stored
+    :param x_axis: x-axis name
+    :param y_axis: y-axis name
+    '''
+    
+    # set width of bar
+        
+    # Set position of bar on X axis
+    result_dict = {}
+    for i, method in enumerate(methods):
+        result_dict[method]=values[i]
+    result_df = pd.DataFrame(data=result_dict)
+
+    # Make the plot 
+    plot = sns.violinplot(data=result_df)  
+    
+    # Create axis and adding Xticks
+    
+    # Save plot
+    plot.figure.savefig(output_path)
 
  
 if __name__=='__main__':
@@ -439,6 +181,14 @@ if __name__=='__main__':
                         help='Data modality')
     parser.add_argument('-csv', '--create-csv', metavar='N', default=True,
                         help='Output csv file with computed metrics') 
+    parser.add_argument('--computed-methods', 
+                        metavar='N', 
+                        default=['sct_discs_coords', 
+                                 'spinenet_coords', 
+                                 'hourglass_t1_coords', 
+                                 'hourglass_t2_coords', 
+                                 'hourglass_t1_t2_coords'],
+                        help='Methods on which metrics will be computed') 
     
     
     compare_methods(parser.parse_args())
