@@ -1,4 +1,6 @@
-# Intervertebral disc labeling methods
+> ⚠️‎‎‎ **For more information regarding state-of-the-art disc labeling techniques, a recent initiative has led to the creation of an open-source benchmark: the code is available here https://github.com/spinalcordtoolbox/disc-labeling-benchmark**
+
+# Intervertebral disc labeling with the hourglass approach
 
 ## Description
 
@@ -6,7 +8,7 @@ This is the continuation of the work made by [Reza Azad](https://www.linkedin.co
 
 Their work was [published](https://dl.acm.org/doi/abs/10.1007/978-3-030-87589-3_42) in a paper called "Stacked Hourglass Network with a Multi-level Attention Mechanism: Where to Look for Intervertebral Disc Labeling" for a MICCAI Workshop in 2021
 
-This repository will be used to train and test the `Stacked Hourglass Network` in different MR case scenario and to compare his results with the current `sct_label_vertebrae` function implemented in the [spinalcordtoolbox](https://github.com/spinalcordtoolbox/spinalcordtoolbox) and other disc labeling technics described in the literature.
+This repository will be used to train and test the `Stacked Hourglass Network` in different MR case scenario.
 
 ## Cross references
 
