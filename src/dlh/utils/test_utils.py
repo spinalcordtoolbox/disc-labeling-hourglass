@@ -20,6 +20,8 @@ from spinalcordtoolbox.utils.sys import run_proc
 
 from dlh.utils.train_utils import apply_preprocessing
 from dlh.utils.data2array import get_midNifti
+from dlh.utils.metrics import compute_L2_error, compute_z_error, compute_TP_and_FP, compute_TN_and_FN
+
 
 ## Variables
 CONTRAST = {'t1': ['T1w'],
@@ -379,7 +381,6 @@ def project_on_spinal_cord(coords, seg_path, disc_num=True, proj_2d=False):
 def edit_subject_lines_txt_file(coords, txt_lines, subject_name, contrast, method_name='hourglass_coord'):
     '''
     Write coordinates in txt file
-    Edit txt_file --> line = subject_name contrast disc_num gt_coords sct_discs_coords hourglass_coords spinenet_coords
     
     :param coords: 
         - numpy array of the 2D coordinates of discs plus discs num --> [[x1, y1, disc1], [x2, y2, disc2], ... [xN, yN, discN]]
@@ -387,6 +388,7 @@ def edit_subject_lines_txt_file(coords, txt_lines, subject_name, contrast, metho
     :param txt_lines: list of the txt file lines
     :param subject_name: name of the subject in the text file
     :param contrast: contrast of the image
+    :param method_name: name of the method being run where coordinates come from
     '''
     subject_index = np.where((np.array(txt_lines)[:,0] == subject_name) & (np.array(txt_lines)[:,1] == contrast))  
     start_index = subject_index[0][0]  # Getting the first line in the txt file
@@ -435,6 +437,190 @@ def edit_subject_lines_txt_file(coords, txt_lines, subject_name, contrast, metho
                     txt_lines.insert(last_index, new_line) # Add new disc detection to txt_file lines
                     max_ref_disc = disc_num
     return txt_lines
+
+##
+def edit_metric_csv(result_dict, txt_lines, subject_name, contrast, method_name, nb_subjects):
+    '''
+    Calculate and edit csv file
+    
+    :param result_dict: result dictionary where all metrics will be gathered
+    :param txt_lines: list of the input txt file lines
+    :param subject_name: name of the subject in the text file
+    :param contrast: contrast of the image used for testing
+    :param method_name: name of the method on which metrics will be computed
+    '''
+    txt_lines = np.array(txt_lines)
+    methods = txt_lines[0,:]
+    methods[-1] = methods[-1].replace('\n','')
+    method_idx = np.where(methods==method_name)[0][0]
+    method_short = method_name.split('_coords')[0] # Remove '_coords' suffix
+    
+    subject_idx = np.where(methods=='subject_name')[0][0]
+    discs_num_idx = np.where(methods=='num_disc')[0][0]
+    contrast_idx = np.where(methods=='contrast')[0][0]
+    gt_method_idx = np.where(methods=='gt_coords')[0][0]
+    
+    # Extract str coords and convert to numpy array, None stands for fail detections
+    # TODO : Extract lines only corresponding to mentioned contrast
+    discs_list = np.extract(txt_lines[:,subject_idx] == subject_name, txt_lines[:,discs_num_idx]).astype(int)
+    gt_coords_list = str2array(np.extract(txt_lines[:,subject_idx] == subject_name, txt_lines[:, gt_method_idx]))
+    pred_coords_list = str2array(np.extract(txt_lines[:,subject_idx] == subject_name, txt_lines[:,method_idx]))
+    
+    # Check for missing ground truth (only ground truth detections are considered as real discs)
+    _, gt_missing_discs = check_missing_discs(gt_coords_list) # Numpy array of coordinates without missing detections + list of missing discs
+        
+    # Check for missing discs predictions
+    pred_discs_list, pred_missing_discs = check_missing_discs(pred_coords_list) # Numpy array of coordinates without missing detections + list of missing discs
+    
+    # Calculate total prediction and true number of discs
+    total_discs = discs_list.shape[0] - gt_missing_discs.shape[0]
+    total_pred = discs_list.shape[0] - pred_missing_discs.shape[0]
+    
+    # Concatenate all the missing discs to compute metrics
+    pred_and_gt_missing_discs = np.unique(np.append(pred_missing_discs, gt_missing_discs))
+    pred_and_gt_missing_idx = np.in1d(discs_list, pred_and_gt_missing_discs) # get discs idx
+    
+    # Keep only coordinates that are present in both ground truth and prediction
+    gt_coords_list = np.array(gt_coords_list[~pred_and_gt_missing_idx].tolist())
+    pred_coords_list = np.array(pred_coords_list[~pred_and_gt_missing_idx].tolist())
+    
+    # Add subject to result dict
+    if subject_name not in list(result_dict.keys()):
+        result_dict[subject_name] = {}
+    
+    #-------------------------#
+    # Compute L2 error
+    #-------------------------#
+    l2_pred = compute_L2_error(gt=gt_coords_list, pred=pred_coords_list)
+
+    # Compute L2 error mean and std
+    l2_pred_mean = np.mean(l2_pred) if l2_pred.size != 0 else 0
+    l2_pred_std = np.std(l2_pred) if l2_pred.size != 0 else 0
+    
+    #--------------------------------#
+    # Compute Z error
+    #--------------------------------#
+    z_err_pred = compute_z_error(gt=gt_coords_list, pred=pred_coords_list)
+    
+    # Compute z error mean and std
+    z_err_pred_mean = np.mean(z_err_pred) if z_err_pred.size != 0 else 0
+    z_err_pred_std = np.std(z_err_pred) if z_err_pred.size != 0 else 0
+
+    #----------------------------------------------------#
+    # Compute true and false positive rate (TPR and FPR)
+    #----------------------------------------------------#
+    gt_discs = discs_list[~np.in1d(discs_list, gt_missing_discs)]
+    pred_discs = discs_list[~np.in1d(discs_list, pred_missing_discs)]
+
+    TP_pred, FP_pred, FP_list_pred = compute_TP_and_FP(discs_gt=gt_discs, discs_pred=pred_discs)
+    
+    FPR_pred = FP_pred/total_pred if total_pred != 0 else 0
+    TPR_pred = TP_pred/total_pred if total_pred != 0 else 0
+    
+    #----------------------------------------------------#
+    # Compute true and false negative rate (TNR and FNR)
+    #----------------------------------------------------#
+    TN_pred, FN_pred, FN_list_pred = compute_TN_and_FN(missing_gt=gt_missing_discs, missing_pred=pred_missing_discs)
+    
+    FNR_pred = FN_pred/total_pred if total_pred != 0 else 1
+    TNR_pred = TN_pred/total_pred if total_pred != 0 else 1
+    
+    #-------------------------------------------#
+    # Compute dice score : DSC=2TP/(2TP+FP+FN)
+    #-------------------------------------------#
+    DSC_pred = 2*TP_pred/(2*TP_pred+FP_pred+FN_pred)
+    
+    ###################################
+    # Add computed metrics to subject #
+    ###################################
+    
+    # Add L2 error
+    result_dict[subject_name][f'l2_mean_{method_short}'] = l2_pred_mean
+    result_dict[subject_name][f'l2_std_{method_short}'] = l2_pred_std
+    
+    # Add Z error
+    result_dict[subject_name][f'z_mean_{method_short}'] = z_err_pred_mean
+    result_dict[subject_name][f'z_std_{method_short}'] = z_err_pred_std
+    
+    # Add true positive rate
+    result_dict[subject_name][f'TPR_{method_short}'] = TPR_pred
+    
+    # Add false positive rate and FP list
+    result_dict[subject_name][f'FP_list_{method_short}'] = FP_list_pred
+    result_dict[subject_name][f'FPR_{method_short}'] = FPR_pred
+    
+    # Add true negative rate
+    result_dict[subject_name][f'TNR_{method_short}'] = TNR_pred
+    
+    # Add false negative rate and FN list
+    result_dict[subject_name][f'FN_list_{method_short}'] = FN_list_pred
+    result_dict[subject_name][f'FNR_{method_short}'] = FNR_pred
+    
+    # Add dice score
+    result_dict[subject_name][f'DSC_{method_short}'] = DSC_pred
+    
+    # Add total number of discs
+    result_dict[subject_name]['tot_discs'] = total_discs
+    result_dict[subject_name][f'tot_pred_{method_short}'] = total_pred
+    
+    ######################################
+    # Add total mean of computed metrics #
+    ######################################
+    
+    if 'total' not in list(result_dict.keys()):
+        ## Init total dict for results
+        result_dict['total'] = {}
+    
+    if f'l2_mean_{method_short}' not in list(result_dict['total'].keys()):
+        # Init L2 error
+        result_dict['total'][f'l2_mean_{method_short}'] = 0
+        result_dict['total'][f'l2_std_{method_short}'] = 0
+        
+        # Init Z error
+        result_dict['total'][f'z_mean_{method_short}'] = 0
+        result_dict['total'][f'z_std_{method_short}'] = 0
+        
+        # Init true positive rate
+        result_dict['total'][f'TPR_{method_short}'] = 0
+        
+        # Init false positive rate
+        result_dict['total'][f'FPR_{method_short}'] = 0
+        
+        # Init true negative rate
+        result_dict['total'][f'TNR_{method_short}'] = 0
+        
+        # Init false negative rate
+        result_dict['total'][f'FNR_{method_short}'] = 0
+        
+        # Init dice score
+        result_dict['total'][f'DSC_{method_short}'] = 0
+    
+    # Add L2 error
+    result_dict['total'][f'l2_mean_{method_short}'] += l2_pred_mean/nb_subjects
+    result_dict['total'][f'l2_std_{method_short}'] += l2_pred_std/nb_subjects
+    
+    # Add Z error
+    result_dict['total'][f'z_mean_{method_short}'] += z_err_pred_mean/nb_subjects
+    result_dict['total'][f'z_std_{method_short}'] += z_err_pred_std/nb_subjects
+    
+    # Add true positive rate
+    result_dict['total'][f'TPR_{method_short}'] += TPR_pred/nb_subjects
+    
+    # Add false positive rate
+    result_dict['total'][f'FPR_{method_short}'] += FPR_pred/nb_subjects
+    
+    # Add true negative rate
+    result_dict['total'][f'TNR_{method_short}'] += TNR_pred/nb_subjects
+    
+    # Add false negative rate
+    result_dict['total'][f'FNR_{method_short}'] += FNR_pred/nb_subjects
+    
+    # Add dice score
+    result_dict['total'][f'DSC_{method_short}'] += DSC_pred/nb_subjects
+    
+    return result_dict, pred_discs_list
+
+
 
 ##
 def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1, 0.1), label_suffix='_labels-disc-manual', img_suffix=''):

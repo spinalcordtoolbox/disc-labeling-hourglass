@@ -112,7 +112,7 @@ if __name__=='__main__':
                         help='Specify img suffix (default= "")')
     parser.add_argument('--skeleton-dir', default=os.path.join(parser.parse_args().datapath, 'skeletons'),
                         type=str, metavar='N',help='Generated txt file')
-    parser.add_argument('--train-contrasts', default=parser.parse_args().contrast, type=str, metavar='N',
+    parser.add_argument('--train-contrasts', default='all', type=str, metavar='N', #parser.parse_args().contrast
                         help='MRI contrast used for the training' 
                         'default= "--contrast" parameter'
                         'write "all" for multipe contrast comparison')
@@ -123,10 +123,10 @@ if __name__=='__main__':
     parser.add_argument('-b', '--blocks', default=1, type=int, metavar='N',
                         help='Number of residual modules at each location in the hourglass')                                                                                               
     
-    init_txt_file(parser.parse_args())
-    add_gt_coordinate_to_txt_file(parser.parse_args())
-    test_sct_label_vertebrae(parser.parse_args())
-    test_spinenet(parser.parse_args())  
+    #init_txt_file(parser.parse_args())
+    #add_gt_coordinate_to_txt_file(parser.parse_args())
+    #test_sct_label_vertebrae(parser.parse_args())
+    #test_spinenet(parser.parse_args())  
     test_hourglass(parser.parse_args())
     
     print('All the methods have been computed')

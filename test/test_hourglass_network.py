@@ -30,7 +30,7 @@ def test_hourglass(args):
 
     # Handle multiple contrast for hourglass WEIGHTS
     if args.train_contrasts == 'all':
-        train_contrasts = list(CONTRAST.keys())
+        train_contrasts = ['t1_t2']#list(CONTRAST.keys())
     else:
         train_contrasts = [args.train_contrasts]
     
@@ -48,6 +48,7 @@ def test_hourglass(args):
         
         # Verify if skeleton exists before running test
         if os.path.exists(path_skeleton):
+            print(f'Processing with hourglass trained on contrast {train_contrast}')
             norm_mean_skeleton = np.load(path_skeleton)
             
             # Load network weights
@@ -82,7 +83,6 @@ def test_hourglass(args):
                 split_lines = [line.split(' ') for line in file_lines]
             
             # Extract discs coordinates from the test set
-            print('Processing with hourglass')
             for i, (inputs, targets, vis, gt_coord, subject_name) in enumerate(MRI_test_loader): # subject_name
                 inputs, targets = inputs.to(device), targets.to(device, non_blocking=True)
                 output = model(inputs) 
