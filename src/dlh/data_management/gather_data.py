@@ -22,7 +22,7 @@ def main(args):
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
     
-    ADD =  data_dir + "derivatives/labels/"
+    ADD =  os.path.join(data_dir,"derivatives/labels/")
     ADD2 = data_dir
 
     list_dir = os.listdir(ADD)
@@ -32,11 +32,11 @@ def main(args):
             for contrast in contrasts:
                 print(f"Processing subject {list_dir[idx]} with {contrast}")
                 ## Copy the disc label   
-                src1 = ADD + list_dir[idx] + '/anat/' + list_dir[idx] + img_suffix + '_' + contrast + label_suffix + '.nii.gz'
+                src1 = os.path.join(ADD, list_dir[idx] + '/anat/' + list_dir[idx] + img_suffix + '_' + contrast + label_suffix + '.nii.gz')
                 dst1 = list_dir[idx] + '/' + list_dir[idx] + img_suffix + '_' + contrast + label_suffix +'.nii.gz'  
                 
                 ## Copy the image   
-                src2 = ADD2 + list_dir[idx] + '/anat/'+list_dir[idx] + img_suffix + '_' + contrast + '.nii.gz'
+                src2 = os.path.join(ADD2, list_dir[idx] + '/anat/'+list_dir[idx] + img_suffix + '_' + contrast + '.nii.gz')
                 dst2 = list_dir[idx] + '/' +list_dir[idx] + img_suffix + '_' + contrast + '.nii.gz'           
                 
                 # Copy image and labels only if both are present in the dataset    
@@ -67,8 +67,8 @@ if __name__ == '__main__':
     parser.add_argument('-o', '--output-folder', type=str, required=True,
                         help='Path out to output folder')
     parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
-                        help='Specify label suffix (default= "_labels-disc-manual")') 
+                        help='Specify label suffix example: sub-296085(IMG_SUFFIX)_T2w(LABEL_SUFFIX).nii.gz (default= "_labels-disc-manual")') 
     parser.add_argument('--suffix-img', type=str, default='',
-                        help='Specify img suffix (default= "")') 
+                        help='Specify img suffix example: sub-296085(IMG_SUFFIX)_T2w.nii.gz (default= "")') 
     
     main(parser.parse_args())
