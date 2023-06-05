@@ -49,7 +49,7 @@ python src/dlh/data_management/gather_data.py --datapath DATAPATH -o VERTEBRAL_D
 ```
 
 4. Train hourglass on the vertebral data
-> 🐝 Currently the training is monitored using wandb (please check [here](https://wandb.ai/site)). Please log using `wandb login` in the command or train offline with `wandb offline`
+> 🐝 Currently the training is monitored using wandb (please check [here](https://wandb.ai/site)). Please log using `wandb login` in the command or train offline with `wandb offline` before training.
 ```Bash
 python src/dlh/train/main.py --datapath VERTEBRAL_DATA -c t2 --ndiscs 15
 ```
