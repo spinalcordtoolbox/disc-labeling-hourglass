@@ -10,6 +10,7 @@ import os
 import numpy as np
 import cv2
 from scipy import signal
+import copy
 import torch
 from torch.utils.data import Dataset
 from torchvision.utils import make_grid
@@ -298,7 +299,6 @@ def sigmoid(x):
     x[x<0.0] = 0
     return x
 
-import copy
 def save_attention(inputs, outputs, targets, att, target_th=0.5):
     targets = targets.data.cpu().numpy()
     outputs = outputs.data.cpu().numpy()

@@ -10,11 +10,10 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
 import numpy as np
 import matplotlib
 
-from spinalcordtoolbox.image import Image
+from spinalcordtoolbox.image import Image # TODO: Check out to replace this import to avoid dependency
 
 matplotlib.use("Agg")
 

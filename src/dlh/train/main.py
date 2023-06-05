@@ -14,7 +14,6 @@ import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
 import torch.optim
-import numpy as np
 from progress.bar import Bar
 from torch.utils.data import DataLoader 
 import copy
@@ -476,7 +475,7 @@ if __name__ == '__main__':
                         help='Sigma decay rate for each epoch.')
     parser.add_argument('--weight-folder', type=str, default='src/dlh/weights',
                         help='Folder where hourglass weights are stored and loaded')
-    parser.add_argument('--visual-folder', type=str, default='test/visualize',
+    parser.add_argument('--visual-folder', type=str, default='visualize',
                         help='Folder where visuals are stored')
 
     # Create weights folder to store training weights
