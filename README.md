@@ -38,6 +38,8 @@ cd disc-labeling-hourglass/
 ```Bash
 conda create -n myenv python=3.8
 conda activate myenv
+pip install -r requirements.txt
+pip install -e
 ```
 (in development) --> cf https://github.com/spinalcordtoolbox/disc-labeling-hourglass/issues/18
 
