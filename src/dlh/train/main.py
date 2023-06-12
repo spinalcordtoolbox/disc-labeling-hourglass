@@ -422,9 +422,9 @@ if __name__ == '__main__':
     
     ## Parameters
     parser.add_argument('--datapath', type=str, required=True,
-                        help='Path to data folder generated using gather_data.py Example: ~/<your_dataset>/vertebral_data (Required)')
+                        help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required)')
     parser.add_argument('-c', '--contrasts', type=str, metavar='N', required=True,
-                        help='MRI contrasts (Required)')               
+                        help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required)')               
     
     parser.add_argument('--ndiscs', type=int, default=15,
                         help='Number of discs to detect (default=15)')

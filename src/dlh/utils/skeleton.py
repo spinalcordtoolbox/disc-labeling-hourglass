@@ -81,10 +81,11 @@ if __name__=='__main__':
     
     ## Parameters
     parser.add_argument('--datapath', type=str, required=True,
-                        help='Path to trainset')
+                        help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required)')
     parser.add_argument('-c', '--contrast', type=str, metavar='N', required=True,
-                        help='MRI contrast')
-    parser.add_argument('--ndiscs', type=int, required=True,
-                        help='Number of discs to detect')
+                        help='MRI contrast: choices=["t1", "t2", "t1_t2"] (Required)')
+    
+    parser.add_argument('--ndiscs', type=int, default=15,
+                        help='Number of discs to detect (default=15)')
     
     create_skeleton(parser.parse_args())  # Create skeleton file to improve hourglass accuracy during testing
