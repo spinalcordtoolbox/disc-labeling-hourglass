@@ -422,61 +422,61 @@ if __name__ == '__main__':
     
     ## Parameters
     parser.add_argument('--datapath', type=str, required=True,
-                        help='Path to data folder')
+                        help='Path to data folder generated using gather_data.py Example: ~/<your_dataset>/vertebral_data (Required)')
     parser.add_argument('-c', '--contrasts', type=str, metavar='N', required=True,
-                        help='MRI contrasts')               
-    parser.add_argument('--ndiscs', type=int, required=True,
-                        help='Number of discs to detect')
+                        help='MRI contrasts (Required)')               
     
+    parser.add_argument('--ndiscs', type=int, default=15,
+                        help='Number of discs to detect (default=15)')
     parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
                         help='Specify label suffix (default= "_labels-disc-manual")') 
     parser.add_argument('--suffix-img', type=str, default='',
                         help='Specify img suffix (default= "")')
     parser.add_argument('--wandb', default=True,
-                        help='Train with wandb')
+                        help='Train with wandb (default=True)')
     parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
-                        help='Split ratio used for (train, val, test)')
-    parser.add_argument('--resume', default= False, type=bool,
-                        help='Resume the training from the last checkpoint')  
-    parser.add_argument('--attshow', default= False, type=bool,
-                        help=' Show the attention map') 
+                        help='Split ratio used for (train, val, test) (default=(0.8, 0.1, 0.1))')
+    parser.add_argument('--resume', default=False, type=bool,
+                        help='Resume the training from the last checkpoint (default=False)')  
+    parser.add_argument('--attshow', default=False, type=bool,
+                        help=' Show the attention map (default=False)') 
     parser.add_argument('--epochs', default=120, type=int, metavar='N',
-                        help='number of total epochs to run')
+                        help='number of total epochs to run (default=120)')
     parser.add_argument('--train-batch', default=3, type=int, metavar='N', 
-                        help='train batchsize')
+                        help='train batchsize (default=3)')
     parser.add_argument('--val-batch', default=4, type=int, metavar='N',
-                        help='validation batchsize')
+                        help='validation batchsize (default=4)')
     parser.add_argument('--solver', metavar='SOLVER', default='rms',
                         choices=['rms', 'adam'],
-                        help='optimizers')
+                        help='optimizers: choices=["rms", "adam"] (default="rms")')
     parser.add_argument('--lr', '--learning-rate', default=2.5e-4, type=float,
-                        metavar='LR', help='initial learning rate')
+                        metavar='LR', help='initial learning rate (default=2.5e-4)')
     parser.add_argument('--momentum', default=0, type=float, metavar='M',
-                        help='momentum')
+                        help='momentum (default=0)')
     parser.add_argument('--weight-decay', '--wd', default=0, type=float,
-                        metavar='W', help='weight decay (default: 0)')
+                        metavar='W', help='weight decay (default=0)')
     parser.add_argument('--schedule', type=int, nargs='+', default=[60, 90],
-                        help='Decrease learning rate at these epochs.')
+                        help='Decrease learning rate at these epochs. (default=[60, 90])')
     parser.add_argument('--gamma', type=float, default=0.1,
-                        help='LR is multiplied by gamma on schedule.')
+                        help='LR is multiplied by gamma on schedule. (default=0.1)')
     parser.add_argument('-e', '--evaluate', default=False, type=bool,
-                        help='evaluate model on validation set')
+                        help='Evaluate model on validation set (default=False)')
     parser.add_argument('--att', default=True, type=bool, 
-                        help='Use attention or not')
+                        help='Use attention or not (default=True)')
     parser.add_argument('-s', '--stacks', default=2, type=int, metavar='N',
-                        help='Number of hourglasses to stack')
+                        help='Number of hourglasses to stack (default=2)')
     parser.add_argument('--features', default=256, type=int, metavar='N',
-                        help='Number of features in the hourglass')
+                        help='Number of features in the hourglass (default=256)')
     parser.add_argument('-b', '--blocks', default=1, type=int, metavar='N',
-                        help='Number of residual modules at each location in the hourglass')
+                        help='Number of residual modules at each location in the hourglass (default=1)')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
-                        help='manual epoch number (useful on restarts)')
+                        help='manual epoch number (useful on restarts) (default=0)')
     parser.add_argument('--sigma-decay', type=float, default=0,
-                        help='Sigma decay rate for each epoch.')
+                        help='Sigma decay rate for each epoch. (default=0)')
     parser.add_argument('--weight-folder', type=str, default='src/dlh/weights',
-                        help='Folder where hourglass weights are stored and loaded')
+                        help='Folder where hourglass weights are stored and loaded. Will be created if does not exist. (default="src/dlh/weights")')
     parser.add_argument('--visual-folder', type=str, default='visualize',
-                        help='Folder where visuals are stored')
+                        help='Folder where visuals are stored. Will be created if does not exist. (default="visualize")')
 
     # Create weights folder to store training weights
     if not os.path.exists(parser.parse_args().weight_folder):
