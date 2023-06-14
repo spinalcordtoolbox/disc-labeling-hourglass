@@ -19,7 +19,7 @@ def create_skeleton(args):
     datapath = args.datapath
     contrasts = CONTRAST[args.contrasts]
     ndiscs = args.ndiscs 
-    out_dir = os.path.join(datapath,'skeletons')
+    out_dir = args.skeleton_folder
 
     
     # Loading images for training

@@ -477,6 +477,8 @@ if __name__ == '__main__':
                         help='Folder where hourglass weights are stored and loaded. Will be created if does not exist. (default="src/dlh/weights")')
     parser.add_argument('--visual-folder', type=str, default='visualize',
                         help='Folder where visuals are stored. Will be created if does not exist. (default="visualize")')
+    parser.add_argument('--skeleton-folder', type=str, default='src/dlh/skeletons',
+                        help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
 
     # Create weights folder to store training weights
     if not os.path.exists(parser.parse_args().weight_folder):
@@ -485,6 +487,10 @@ if __name__ == '__main__':
     # Create visualize folder to images created during training
     if not os.path.exists(parser.parse_args().visual_folder):
         os.mkdir(parser.parse_args().visual_folder)
+    
+    # Create skeleton folder to store training skeletons
+    if not os.path.exists(parser.parse_args().skeleton_folder):
+        os.mkdir(parser.parse_args().skeleton_folder)
         
     main(parser.parse_args())  # Train the hourglass network
     create_skeleton(parser.parse_args())  # Create skeleton file to improve hourglass accuracy during testing

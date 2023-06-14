@@ -2,6 +2,7 @@ visualize/
 .idea/
 output.avi
 weights/
+skeletons/
 files/
 .vscode/
 __pycache__/
