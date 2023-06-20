@@ -20,8 +20,11 @@ def create_skeleton(args):
     contrasts = CONTRAST[args.contrasts]
     ndiscs = args.ndiscs 
     out_dir = args.skeleton_folder
-
     
+    # Create skeleton folder to store training skeletons
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+
     # Loading images for training
     print('loading images...')
     imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(datapath=datapath, 
