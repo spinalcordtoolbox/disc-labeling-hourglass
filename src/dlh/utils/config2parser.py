@@ -20,15 +20,14 @@ def parser2config(args, path_out):
     :param path_out: path out of the config file
     '''
     # Check if path_out exists or create it
-    if not os.path.exists(path_out):
-        os.makedirs(path_out)
+    if not os.path.exists(os.path.dirname(path_out)):
+        os.makedirs(os.path.dirname(path_out))
 
     # Serializing json
     json_object = json.dumps(vars(args), indent=4)
     
     # Writing to sample.json
-    json_path = os.path.join(os.path.abspath(path_out),f'config_{os.path.basename(args.datapath)}_{args.contrasts}.json')
-    with open(json_path, "w") as outfile:
-        print(f"The config file {json_path} with all the training parameters was created")
+    with open(path_out, "w") as outfile:
+        print(f"The config file {path_out} with all the training parameters was created")
         outfile.write(json_object)
     

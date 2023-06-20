@@ -545,7 +545,8 @@ if __name__ == '__main__':
     if parser.parse_args().config == '':
         # No config file mode
         args = parser.parse_args()
-        parser2config(args, path_out=parser.parse_args().weight_folder)  # Create json file with training parameters
+        json_name = f'config_{os.path.basename(args.datapath)}_{args.contrasts}.json'
+        parser2config(args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
         
     else:
         # Config file mode
