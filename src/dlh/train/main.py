@@ -18,6 +18,7 @@ from progress.bar import Bar
 from torch.utils.data import DataLoader 
 import copy
 import wandb
+import json
 
 from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
@@ -26,6 +27,7 @@ from dlh.models.utils import AverageMeter, adjust_learning_rate, accuracy, dice_
 from dlh.utils.train_utils import image_Dataset, SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject
 from dlh.utils.test_utils import CONTRAST, load_niftii_split
 from dlh.utils.skeleton import create_skeleton
+from dlh.utils.config2parser import parser2config, config2parser
 
 # select proper device to run
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -44,6 +46,14 @@ def main(args):
     wandb_mode = args.wandb
     label_suffix = args.suffix_label
     img_suffix = args.suffix_img
+    
+    # Create weights folder to store training weights
+    if not os.path.exists(weight_folder):
+        os.mkdir(weight_folder)
+        
+    # Create visualize folder to images created during training
+    if not os.path.exists(vis_folder):
+        os.mkdir(vis_folder)
     
     # Loading images for training and validation
     print('loading images...')
@@ -416,22 +426,74 @@ def show_attention(val_loader, model):
                output = output[-1]
                save_attention(input, output, target, att, target_th=0.6)
             
-    return 0, 0         
+    return 0, 0
+
+def create_json(args):
+    '''
+    This script creates a json file where training parameters will be stored
+    '''
+    # Data to be written
+    data = {
+        "datapath": args.datapath,
+        "contrasts": args.contrasts,
+        "suffix_img": args.suffix_img,
+        "suffix_label": args.suffix_label,
+        "wandb": args.wandb,
+        "split_ratio": args.split_ratio,
+        "resume": args.resume,
+        "attshow": args.attshow,
+        "epochs": args.epochs,
+        "train_batch": args.train_batch,
+        "val_batch": args.val_batch,
+        "solver": args.solver,
+        "learning_rate": args.learning_rate,
+        "momentum": args.momentum,
+        "weight_decay": args.weight_decay,
+        "sigma_decay": args.sigma_decay,
+        "schedule": args.schedule,
+        "gamma": args.gamma,
+        "evaluate": args.evaluate,
+        "start_epoch": args.start_epoch,
+        "weight_folder": os.path.abspath(args.weight_folder),
+        "skeleton_folder": os.path.abspath(args.skeleton_folder),
+        "visual-folder": os.path.abspath(args.visual_folder),
+        "ndiscs": args.ndiscs, # model parameters
+        "att": args.att,
+        "stacks": args.stacks,
+        "features": args.features,
+        "blocks": args.blocks 
+    }
+    
+    # Serializing json
+    json_object = json.dumps(data, indent=4)
+    
+    # Writing to sample.json
+    json_path = os.path.join(os.path.abspath(args.weight_folder),f'config_{os.path.basename(args.datapath)}_{args.contrasts}.json')
+    with open(json_path, "w") as outfile:
+        print(f"The config file {json_path} with all the training parameters was created")
+        outfile.write(json_object)
+    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training hourglass network')
     
-    ## Parameters
-    parser.add_argument('--datapath', type=str, required=True,
-                        help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required)')
-    parser.add_argument('-c', '--contrasts', type=str, metavar='N', required=True,
-                        help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required)')               
+    ## Config file mode
+    parser.add_argument('--config', type=str, default='',
+                        help='Path to the training config file Example: ~/<your_path>/config.json')
     
-    parser.add_argument('--ndiscs', type=int, default=15,
-                        help='Number of discs to detect (default=15)')
+    ## Parameters (no config file mode)
+    # General parameters
+    parser.add_argument('--datapath', type=str,
+                        help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required if no config file)')
+    parser.add_argument('-c', '--contrasts', type=str, metavar='N',
+                        help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required if no config file)')               
     parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
                         help='Specify label suffix (default= "_labels-disc-manual")') 
     parser.add_argument('--suffix-img', type=str, default='',
                         help='Specify img suffix (default= "")')
+    
+    # Model parameters
+    parser.add_argument('--ndiscs', type=int, default=15,
+                        help='Number of discs to detect (default=15)')
     parser.add_argument('--wandb', default=True,
                         help='Train with wandb (default=True)')
     parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
@@ -455,6 +517,8 @@ if __name__ == '__main__':
                         help='momentum (default=0)')
     parser.add_argument('--weight-decay', '--wd', default=0, type=float,
                         metavar='W', help='weight decay (default=0)')
+    parser.add_argument('--sigma-decay', type=float, default=0,
+                        help='Sigma decay rate for each epoch. (default=0)')
     parser.add_argument('--schedule', type=int, nargs='+', default=[60, 90],
                         help='Decrease learning rate at these epochs. (default=[60, 90])')
     parser.add_argument('--gamma', type=float, default=0.1,
@@ -471,27 +535,21 @@ if __name__ == '__main__':
                         help='Number of residual modules at each location in the hourglass (default=1)')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts) (default=0)')
-    parser.add_argument('--sigma-decay', type=float, default=0,
-                        help='Sigma decay rate for each epoch. (default=0)')
     parser.add_argument('--weight-folder', type=str, default='src/dlh/weights',
                         help='Folder where hourglass weights are stored and loaded. Will be created if does not exist. (default="src/dlh/weights")')
     parser.add_argument('--visual-folder', type=str, default='visualize',
                         help='Folder where visuals are stored. Will be created if does not exist. (default="visualize")')
     parser.add_argument('--skeleton-folder', type=str, default='src/dlh/skeletons',
                         help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
-
-    # Create weights folder to store training weights
-    if not os.path.exists(parser.parse_args().weight_folder):
-        os.mkdir(parser.parse_args().weight_folder)
-        
-    # Create visualize folder to images created during training
-    if not os.path.exists(parser.parse_args().visual_folder):
-        os.mkdir(parser.parse_args().visual_folder)
     
-    # Create skeleton folder to store training skeletons
-    if not os.path.exists(parser.parse_args().skeleton_folder):
-        os.mkdir(parser.parse_args().skeleton_folder)
+    if parser.parse_args().config == '':
+        # No config file mode
+        args = parser.parse_args()
+        parser2config(args, path_out=parser.parse_args().weight_folder)  # Create json file with training parameters
         
-    main(parser.parse_args())  # Train the hourglass network
-    create_skeleton(parser.parse_args())  # Create skeleton file to improve hourglass accuracy during testing
+    else:
+        # Config file mode
+        args = config2parser(parser.parse_args().config)
     
+    main(args)  # Train the hourglass network
+    create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing
