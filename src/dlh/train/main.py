@@ -428,50 +428,6 @@ def show_attention(val_loader, model):
             
     return 0, 0
 
-def create_json(args):
-    '''
-    This script creates a json file where training parameters will be stored
-    '''
-    # Data to be written
-    data = {
-        "datapath": args.datapath,
-        "contrasts": args.contrasts,
-        "suffix_img": args.suffix_img,
-        "suffix_label": args.suffix_label,
-        "wandb": args.wandb,
-        "split_ratio": args.split_ratio,
-        "resume": args.resume,
-        "attshow": args.attshow,
-        "epochs": args.epochs,
-        "train_batch": args.train_batch,
-        "val_batch": args.val_batch,
-        "solver": args.solver,
-        "learning_rate": args.learning_rate,
-        "momentum": args.momentum,
-        "weight_decay": args.weight_decay,
-        "sigma_decay": args.sigma_decay,
-        "schedule": args.schedule,
-        "gamma": args.gamma,
-        "evaluate": args.evaluate,
-        "start_epoch": args.start_epoch,
-        "weight_folder": os.path.abspath(args.weight_folder),
-        "skeleton_folder": os.path.abspath(args.skeleton_folder),
-        "visual-folder": os.path.abspath(args.visual_folder),
-        "ndiscs": args.ndiscs, # model parameters
-        "att": args.att,
-        "stacks": args.stacks,
-        "features": args.features,
-        "blocks": args.blocks 
-    }
-    
-    # Serializing json
-    json_object = json.dumps(data, indent=4)
-    
-    # Writing to sample.json
-    json_path = os.path.join(os.path.abspath(args.weight_folder),f'config_{os.path.basename(args.datapath)}_{args.contrasts}.json')
-    with open(json_path, "w") as outfile:
-        print(f"The config file {json_path} with all the training parameters was created")
-        outfile.write(json_object)
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training hourglass network')
@@ -535,21 +491,33 @@ if __name__ == '__main__':
                         help='Number of residual modules at each location in the hourglass (default=1)')
     parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                         help='manual epoch number (useful on restarts) (default=0)')
-    parser.add_argument('--weight-folder', type=str, default='src/dlh/weights',
+    
+    parser.add_argument('--weight-folder', type=str, default=os.path.abspath('src/dlh/weights'),
                         help='Folder where hourglass weights are stored and loaded. Will be created if does not exist. (default="src/dlh/weights")')
-    parser.add_argument('--visual-folder', type=str, default='visualize',
+    parser.add_argument('--visual-folder', type=str, default=os.path.abspath('visualize'),
                         help='Folder where visuals are stored. Will be created if does not exist. (default="visualize")')
-    parser.add_argument('--skeleton-folder', type=str, default='src/dlh/skeletons',
+    parser.add_argument('--skeleton-folder', type=str, default=os.path.abspath('src/dlh/skeletons'),
                         help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
     
     if parser.parse_args().config == '':
-        # No config file mode
+        # Parser mode
         args = parser.parse_args()
+        
+        # Create absolute paths
+        args.datapath = os.path.abspath(args.datapath)
+        args.weight_folder = os.path.abspath(args.weight_folder)
+        args.visual_folder = os.path.abspath(args.visual_folder)
+        args.skeleton_folder = os.path.abspath(args.skeleton_folder)
+        
+        # Create file name
         json_name = f'config_{os.path.basename(args.datapath)}_{args.contrasts}.json'
+        
+        # Create config file
         parser2config(args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
         
     else:
         # Config file mode
+        # Extract training parameters from the config file
         args = config2parser(parser.parse_args().config)
     
     main(args)  # Train the hourglass network
