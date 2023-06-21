@@ -169,16 +169,19 @@ def closest_node(node, nodes):
 ##
 def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1, 0.1), label_suffix='_labels-disc-manual', img_suffix=''):
     '''
-    This function output 3 lists corresponding to:
-        - the midle slice extracted from the niftii images
+    This function output 5 lists corresponding to:
+        - the middle slice extracted from the niftii images
         - the corresponding masks with discs labels
         - the discs labels
         - the subjects names
+        - the image slice shape
     
     :param datapath: Path to dataset
     :param contrasts: Contrasts of the images loaded
     :param split: Split of the data needed ('train', 'val', 'test', 'full')
     :param split_ratio: Ratio used to split the data: split_ratio=(train, val, test)
+    :param label_suffix: The label suffix: Example='_label-discs'
+    :param img_suffix: The image suffix: Example='_acq-sagittal'
     '''
     # Loading dataset
     dir_list = os.listdir(datapath)
@@ -227,3 +230,46 @@ def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1,
         bar.next()
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
+
+def load_img_only(datapath, contrasts, img_suffix=''):
+    '''
+    This function output 2 lists corresponding to:
+        - the middle slice extracted from the niftii images
+        - the subjects names
+    
+    :param datapath: Path to dataset
+    :param contrasts: Contrasts of the images loaded
+    :param img_suffix: The image suffix: Example='_acq-sagittal'
+    '''
+    # Loading dataset
+    dir_list = os.listdir(datapath)
+    dir_list.sort() # TODO: check if sorting the data is relevant --> mixing data could be more relevant 
+    
+    nb_dir = len(dir_list)
+    begin = 0
+    end = int(np.round(nb_dir)) # The full dataset is loaded
+    
+    # Init progression bar
+    bar = Bar(f'Load full data with pre-processing', max=len(dir_list[begin:end]))
+    
+    imgs = []
+    subjects = []
+    shapes = []
+    for dir_name in dir_list[begin:end]:
+        if dir_name.startswith('sub'):
+            for contrast in contrasts:
+                img_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + '.nii.gz')
+                if not os.path.exists(img_path):
+                    print(f'Error while importing {dir_name}\n {img_path} may not exist')
+                else:
+                    # Applying preprocessing steps
+                    image = apply_preprocessing(img_path)
+                    imgs.append(image)
+                    subjects.append(dir_name)
+                    shapes.append(get_midNifti(img_path).shape)
+        
+        # Plot progress
+        bar.suffix  = f'{dir_list[begin:end].index(dir_name)+1}/{len(dir_list[begin:end])}'
+        bar.next()
+    bar.finish()
+    return imgs, subjects, shapes
