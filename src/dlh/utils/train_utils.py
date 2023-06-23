@@ -138,10 +138,10 @@ class image_Dataset(Dataset):
         ## extract joints for pose model
         # Random horizontal flipping
         if self.use_flip:
-            if mask != None:
-                image, mask = RandomHorizontalFlip()(image, mask)
+            if not mask is None:
+                image, mask = RandomHorizontalFlip()(pic=image, mask=mask)
             else:
-                image = RandomHorizontalFlip()(image)
+                image = RandomHorizontalFlip()(pic=image)
         
         # Random vertical flipping
         # image,mask = RandomVerticalFlip()(image,mask)
@@ -153,11 +153,11 @@ class image_Dataset(Dataset):
         image = temp_img
 
         # Transform to tensor
-        if mask != None:
-            image, mask = ToTensor()(image, mask)
+        if not mask is None:
+            image, mask = ToTensor()(pic=image, mask=mask)
             return image, mask
         else:
-            image = ToTensor()(image)
+            image = ToTensor()(pic=image)
             return image
         
     
@@ -165,7 +165,7 @@ class image_Dataset(Dataset):
         
         image = self.images[index]
         image = np.expand_dims(image, axis= -1)
-        if self.targets != None: 
+        if not self.targets is None: 
             mask = self.targets[index]
             mask = np.expand_dims(mask, axis= -1)
             mask, vis  = self.get_posedata(mask, num_ch=self.num_channel)
