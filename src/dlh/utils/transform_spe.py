@@ -389,7 +389,7 @@ class ToTensor(object):
     Convert a ``numpy.ndarray`` to tensor.
     """
 
-    def __call__(self, pic,mask):
+    def __call__(self, pic, mask=None):
         """
         Args:
             converts pic (numpy array) to Tensor
@@ -403,8 +403,10 @@ class ToTensor(object):
 
         if len(pic.shape) == 1: return torch.FloatTensor(pic.copy())
 
-        return torch.FloatTensor(pic.transpose((2, 0, 1)).copy()),torch.FloatTensor(mask.transpose((2, 0, 1)).copy())
-
+        if not mask is None:
+            return torch.FloatTensor(pic.transpose((2, 0, 1)).copy()),torch.FloatTensor(mask.transpose((2, 0, 1)).copy())
+        else:
+            return torch.FloatTensor(pic.transpose((2, 0, 1)).copy())
 
 class Scale(object):
     """
@@ -540,7 +542,7 @@ class RandomHorizontalFlip(object):
     def __init__(self, prob=0.5):
         self.prob = prob
 
-    def __call__(self, pic,mask):
+    def __call__(self, pic, mask=None):
         """
         Args:
             img (numpy array): Image to be flipped.
@@ -556,13 +558,19 @@ class RandomHorizontalFlip(object):
         if len(pic.shape) != 3:
             pic = pic.reshape(pic.shape[0], pic.shape[1], -1)
         
-        if len(mask.shape) != 3:
-            mask = mask.reshape(mask.shape[0], mask.shape[1], -1)
+        if not mask is None:
+            if len(mask.shape) != 3:
+                mask = mask.reshape(mask.shape[0], mask.shape[1], -1)
 
         if random.random() < self.prob:
-            return pic[:, ::-1, :],mask[:, ::-1, :]
-        return pic,mask
-
+            if not mask is None:
+                return pic[:, ::-1, :],mask[:, ::-1, :]
+            else:
+                return pic[:, ::-1, :]
+        if not mask is None:
+            return pic, mask
+        else:
+            return pic
 
 class RandomVerticalFlip(object):
     """Vertically flip the given numpy array randomly with a probability of 0.5 by default."""
