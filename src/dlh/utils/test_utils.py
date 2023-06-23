@@ -25,23 +25,20 @@ CONTRAST = {'t1': ['T1w'],
             't1_t2': ['T1w', 'T2w']}
 
 ## Functions  
-def extract_skeleton(inputs, outputs, target, norm_mean_skeleton, ndiscs, Flag_save=False, target_th=0.5):
+def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save=False, target_th=0.5):
     idtest = 1
     outputs  = outputs.data.cpu().numpy()
-    target  = target.data.cpu().numpy()
+    if not target is None:
+        target  = target.data.cpu().numpy()
     inputs = inputs.data.cpu().numpy()
     skeleton_images = []  # This variable stores an image to visualize discs 
     out_list = []
     for idx in range(outputs.shape[0]):    
         count_list = []
-        Nch = 0
+        Nch = outputs.shape[1]
         center_list = {}
-        while np.sum(np.sum(target[idx, Nch]))>0 and Nch<target.shape[1]:
-            Nch += 1
-        if Nch>=target.shape[1]:
-            print(f'The method is able to detect {ndiscs} discs, more discs may be present in the image')
         Final  = np.zeros((outputs.shape[0], Nch, outputs.shape[2], outputs.shape[3])) # Final array composed of the prediction (outputs) normalized and after applying a threshold       
-        for idy in range(Nch): 
+        for idy in range(Nch):
             ych = outputs[idx, idy]
             #ych = np.rot90(ych)  # Rotate prediction to normal position
             ych = ych/np.max(np.max(ych))
@@ -97,7 +94,9 @@ def extract_skeleton(inputs, outputs, target, norm_mean_skeleton, ndiscs, Flag_s
         
     skeleton_images = np.array(skeleton_images)
     if Flag_save:
-      save_test_results(inputs, skeleton_images, targets=target, name=idtest, target_th=0.5)
+        if not target is None: # TODO: Implement an else case to save images when no target are provided
+            save_test_results(inputs, skeleton_images, targets=target, name=idtest, target_th=0.5)
+            
     idtest+=1
     return Final, out_list
 
