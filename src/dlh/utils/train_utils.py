@@ -390,16 +390,15 @@ def apply_preprocessing(img_path, target_path=''):
     :param img_path: Path to Niftii image
     :param target_path: Path to Niftii target mask
     '''
-    image = get_midNifti(img_path)
-    image = (image - np.mean(image))/(np.std(image)+1e-100) # Equivalent to images_normalization function in dlh.utils.data2array
+    image_in = get_midNifti(img_path)
+    image = (image_in - np.mean(image_in))/(np.std(image_in)+1e-100) # Equivalent to images_normalization function in dlh.utils.data2array
     image = normalize(image)
     image = cv2.resize(image, (256, 256))
     image = image.astype(np.float32)
         
     if target_path != '':
         discs_labels = mask2label(target_path)
-        mask = extract_all(discs_labels, shape_im=image.shape)
-
+        mask = extract_all(discs_labels, shape_im=image_in.shape)
         mask = normalize(mask[0, :, :])
         mask = cv2.resize(mask, (256, 256))
         mask = mask.astype(np.float32)
