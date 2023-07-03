@@ -9,7 +9,7 @@ from __future__ import print_function, absolute_import
 import os
 import argparse
 import time
-os.environ["CUDA_VISIBLE_DEVICES"] = "9"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -30,7 +30,7 @@ from dlh.utils.skeleton import create_skeleton
 from dlh.utils.config2parser import parser2config, config2parser
 
 # select proper device to run
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
 cudnn.benchmark = True  
 
 
