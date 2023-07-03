@@ -118,14 +118,12 @@ class image_Dataset(Dataset):
         msk_uint = np.uint8(np.where(msk >0.2, 1, 0))
         
         num_labels, labels_im = cv2.connectedComponents(msk_uint)
-        self.num_vis_joints.append(num_labels-1)
-        try:
-            # the <0> label is the background
-            for i in range(1, num_labels):
-                y_i = msk * np.where(labels_im == i, 1, 0)
-                ys_ch[:,:, i-1] = y_i
-        except:
-            print(num_labels)
+        self.num_vis_joints.append(num_labels-1) # the <0> label is the background
+        i = 1
+        while i <= num_ch and i <= num_labels:
+            y_i = msk * np.where(labels_im == i, 1, 0)
+            ys_ch[:,:, i-1] = y_i
+            i += 1
         
         vis = np.zeros((num_ch, 1))
         vis[:num_labels-1] = 1
