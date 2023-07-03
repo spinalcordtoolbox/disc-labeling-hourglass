@@ -9,7 +9,7 @@ from __future__ import print_function, absolute_import
 import os
 import argparse
 import time
-os.environ["CUDA_VISIBLE_DEVICES"] = "9"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -30,7 +30,7 @@ from dlh.utils.skeleton import create_skeleton
 from dlh.utils.config2parser import parser2config, config2parser
 
 # select proper device to run
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device("cuda:0") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
 cudnn.benchmark = True  
 
 
@@ -74,7 +74,6 @@ def main(args):
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
                                        targets=masks_train,
-                                       discs_labels_list=discs_labels_train,
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
                                        use_flip = True,
@@ -83,7 +82,6 @@ def main(args):
 
     full_dataset_val = image_Dataset(images=imgs_val, 
                                     targets=masks_val,
-                                    discs_labels_list=discs_labels_val,
                                     subjects_names=subjects_val,
                                     num_channel=args.ndiscs,
                                     use_flip = False,
@@ -448,8 +446,8 @@ if __name__ == '__main__':
                         help='Specify img suffix (default= "")')
     
     # Model parameters
-    parser.add_argument('--ndiscs', type=int, default=15,
-                        help='Number of discs to detect (default=15)')
+    parser.add_argument('--ndiscs', type=int, default=11,
+                        help='Number of discs to detect (default=11)')
     parser.add_argument('--wandb', default=True,
                         help='Train with wandb (default=True)')
     parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
@@ -510,7 +508,7 @@ if __name__ == '__main__':
         args.skeleton_folder = os.path.abspath(args.skeleton_folder)
         
         # Create file name
-        json_name = f'config_{os.path.basename(args.datapath)}_{args.contrasts}.json'
+        json_name = f'config_{os.path.basename(args.datapath)}_{args.contrasts}_ndiscs_{args.ndiscs}.json'
         
         # Create config file
         parser2config(args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters

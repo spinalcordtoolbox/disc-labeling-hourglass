@@ -25,38 +25,38 @@ CONTRAST = {'t1': ['T1w'],
             't1_t2': ['T1w', 'T2w']}
 
 ## Functions  
-def extract_skeleton(inputs, outputs, target, norm_mean_skeleton, ndiscs, Flag_save=False, target_th=0.5):
+def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save=False, target_th=0.5):
     idtest = 1
     outputs  = outputs.data.cpu().numpy()
-    target  = target.data.cpu().numpy()
+    if not target is None:
+        target  = target.data.cpu().numpy()
     inputs = inputs.data.cpu().numpy()
     skeleton_images = []  # This variable stores an image to visualize discs 
     out_list = []
     for idx in range(outputs.shape[0]):    
         count_list = []
-        Nch = 0
+        Nch = outputs.shape[1]
         center_list = {}
-        while np.sum(np.sum(target[idx, Nch]))>0 and Nch<target.shape[1]:
-            Nch += 1
-        if Nch>=target.shape[1]:
-            print(f'The method is able to detect {ndiscs} discs, more discs may be present in the image')
         Final  = np.zeros((outputs.shape[0], Nch, outputs.shape[2], outputs.shape[3])) # Final array composed of the prediction (outputs) normalized and after applying a threshold       
-        for idy in range(Nch): 
+        for idy in range(Nch):
             ych = outputs[idx, idy]
             #ych = np.rot90(ych)  # Rotate prediction to normal position
             ych = ych/np.max(np.max(ych))
             ych[np.where(ych<target_th)] = 0
-            Final[idx, idy] = ych
+            ych_fin = ych[:,:]
             ych = np.where(ych>0, 1.0, 0)
             ych = np.uint8(ych)
             num_labels, labels_im, states, centers = cv2.connectedComponentsWithStats(ych)
-            count_list.append(num_labels-1)
+            count_list.append(num_labels-1) # Number of "object" in the image --> "-1" because we remove the backgroung
             center_list[str(idy)] = [t[::-1] for t in centers[1:]]
+            Final[idx, idy] = ych_fin
             
         ups = []
         for c in count_list:
             ups.append(range(c))
-        combs = cartesian(ups)
+        combs = cartesian(ups) # Create all the possible discs combinations
+        if len(combs)>10:
+            print("Trop de possibilités")
         best_loss = np.Inf
         best_skeleton = []
         for comb in combs:
@@ -64,7 +64,7 @@ def extract_skeleton(inputs, outputs, target, norm_mean_skeleton, ndiscs, Flag_s
             for joint_idx, cnd_joint_idx in enumerate(comb):
                 cnd_center = center_list[str(joint_idx)][cnd_joint_idx]
                 cnd_skeleton.append(cnd_center)
-            loss = check_skeleton(cnd_skeleton, norm_mean_skeleton)
+            loss = check_skeleton(cnd_skeleton, norm_mean_skeleton) # Compare each disc combination with norm_mean_skeleton
             if best_loss > loss:
                 best_loss = loss
                 best_skeleton = cnd_skeleton
@@ -97,7 +97,9 @@ def extract_skeleton(inputs, outputs, target, norm_mean_skeleton, ndiscs, Flag_s
         
     skeleton_images = np.array(skeleton_images)
     if Flag_save:
-      save_test_results(inputs, skeleton_images, targets=target, name=idtest, target_th=0.5)
+        if not target is None: # TODO: Implement an else case to save images when no target are provided
+            save_test_results(inputs, skeleton_images, targets=target, name=idtest, target_th=0.5)
+            
     idtest+=1
     return Final, out_list
 
@@ -169,16 +171,19 @@ def closest_node(node, nodes):
 ##
 def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1, 0.1), label_suffix='_labels-disc-manual', img_suffix=''):
     '''
-    This function output 3 lists corresponding to:
-        - the midle slice extracted from the niftii images
+    This function output 5 lists corresponding to:
+        - the middle slice extracted from the niftii images
         - the corresponding masks with discs labels
         - the discs labels
         - the subjects names
+        - the image slice shape
     
     :param datapath: Path to dataset
     :param contrasts: Contrasts of the images loaded
     :param split: Split of the data needed ('train', 'val', 'test', 'full')
     :param split_ratio: Ratio used to split the data: split_ratio=(train, val, test)
+    :param label_suffix: The label suffix: Example='_label-discs'
+    :param img_suffix: The image suffix: Example='_acq-sagittal'
     '''
     # Loading dataset
     dir_list = os.listdir(datapath)
@@ -227,3 +232,46 @@ def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1,
         bar.next()
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
+
+def load_img_only(datapath, contrasts, img_suffix=''):
+    '''
+    This function output 2 lists corresponding to:
+        - the middle slice extracted from the niftii images
+        - the subjects names
+    
+    :param datapath: Path to dataset
+    :param contrasts: Contrasts of the images loaded
+    :param img_suffix: The image suffix: Example='_acq-sagittal'
+    '''
+    # Loading dataset
+    dir_list = os.listdir(datapath)
+    dir_list.sort() # TODO: check if sorting the data is relevant --> mixing data could be more relevant 
+    
+    nb_dir = len(dir_list)
+    begin = 0
+    end = int(np.round(nb_dir)) # The full dataset is loaded
+    
+    # Init progression bar
+    bar = Bar(f'Load full data with pre-processing', max=len(dir_list[begin:end]))
+    
+    imgs = []
+    subjects = []
+    shapes = []
+    for dir_name in dir_list[begin:end]:
+        if dir_name.startswith('sub'):
+            for contrast in contrasts:
+                img_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + '.nii.gz')
+                if not os.path.exists(img_path):
+                    print(f'Error while importing {dir_name}\n {img_path} may not exist')
+                else:
+                    # Applying preprocessing steps
+                    image = apply_preprocessing(img_path)
+                    imgs.append(image)
+                    subjects.append(dir_name)
+                    shapes.append(get_midNifti(img_path).shape)
+        
+        # Plot progress
+        bar.suffix  = f'{dir_list[begin:end].index(dir_name)+1}/{len(dir_list[begin:end])}'
+        bar.next()
+    bar.finish()
+    return imgs, subjects, shapes

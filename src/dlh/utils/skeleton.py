@@ -35,7 +35,6 @@ def create_skeleton(args):
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
                                        targets=masks_train,
-                                       discs_labels_list=discs_labels_train,
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
                                        use_flip = True,
@@ -85,10 +84,14 @@ if __name__=='__main__':
     ## Parameters
     parser.add_argument('--datapath', type=str, required=True,
                         help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required)')
-    parser.add_argument('-c', '--contrast', type=str, metavar='N', required=True,
+    parser.add_argument('-c', '--contrasts', type=str, metavar='N', required=True,
                         help='MRI contrast: choices=["t1", "t2", "t1_t2"] (Required)')
     
-    parser.add_argument('--ndiscs', type=int, default=15,
-                        help='Number of discs to detect (default=15)')
+    parser.add_argument('--ndiscs', type=int, default=11,
+                        help='Number of discs to detect (default=11)')
+    parser.add_argument('--skeleton-folder', type=str, default=os.path.abspath('src/dlh/skeletons'),
+                        help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
+    parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
+                        help='Split ratio used for (train, val, test) (default=(0.8, 0.1, 0.1))')
     
     create_skeleton(parser.parse_args())  # Create skeleton file to improve hourglass accuracy during testing
