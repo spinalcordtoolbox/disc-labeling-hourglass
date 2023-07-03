@@ -43,17 +43,20 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
             #ych = np.rot90(ych)  # Rotate prediction to normal position
             ych = ych/np.max(np.max(ych))
             ych[np.where(ych<target_th)] = 0
-            Final[idx, idy] = ych
+            ych_fin = ych[:,:]
             ych = np.where(ych>0, 1.0, 0)
             ych = np.uint8(ych)
             num_labels, labels_im, states, centers = cv2.connectedComponentsWithStats(ych)
-            count_list.append(num_labels-1)
+            count_list.append(num_labels-1) # Number of "object" in the image --> "-1" because we remove the backgroung
             center_list[str(idy)] = [t[::-1] for t in centers[1:]]
+            Final[idx, idy] = ych_fin
             
         ups = []
         for c in count_list:
             ups.append(range(c))
-        combs = cartesian(ups)
+        combs = cartesian(ups) # Create all the possible discs combinations
+        if len(combs)>10:
+            print("Trop de possibilités")
         best_loss = np.Inf
         best_skeleton = []
         for comb in combs:
@@ -61,7 +64,7 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
             for joint_idx, cnd_joint_idx in enumerate(comb):
                 cnd_center = center_list[str(joint_idx)][cnd_joint_idx]
                 cnd_skeleton.append(cnd_center)
-            loss = check_skeleton(cnd_skeleton, norm_mean_skeleton)
+            loss = check_skeleton(cnd_skeleton, norm_mean_skeleton) # Compare each disc combination with norm_mean_skeleton
             if best_loss > loss:
                 best_loss = loss
                 best_skeleton = cnd_skeleton
