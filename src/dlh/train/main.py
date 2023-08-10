@@ -18,7 +18,7 @@ from progress.bar import Bar
 from torch.utils.data import DataLoader 
 import copy
 import wandb
-import json
+import copy
 
 from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
@@ -42,7 +42,7 @@ def main(args):
     weight_folder = args.weight_folder
     vis_folder = args.visual_folder
     contrasts = CONTRAST[args.contrasts]
-    datapath = args.datapath
+    config_data = args.config_data
     wandb_mode = args.wandb
     label_suffix = args.suffix_label
     img_suffix = args.suffix_img
@@ -57,17 +57,15 @@ def main(args):
     
     # Loading images for training and validation
     print('loading images...')
-    imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(datapath=datapath, 
+    imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
                                                                                     contrasts=contrasts, 
                                                                                     split='train', 
-                                                                                    split_ratio=args.split_ratio,
                                                                                     label_suffix=label_suffix,
                                                                                     img_suffix=img_suffix)
     
-    imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(datapath=datapath, 
+    imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(config_data=config_data, 
                                                                             contrasts=contrasts, 
                                                                             split='val', 
-                                                                            split_ratio=args.split_ratio,
                                                                             label_suffix=label_suffix,
                                                                             img_suffix=img_suffix)
     
@@ -430,28 +428,22 @@ def show_attention(val_loader, model):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Training hourglass network')
     
-    ## Config file mode
-    parser.add_argument('--config', type=str, default='',
-                        help='Path to the training config file Example: ~/<your_path>/config.json')
-    
-    ## Parameters (no config file mode)
+    ## Parameters
     # General parameters
-    parser.add_argument('--datapath', type=str,
-                        help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required if no config file)')
+    parser.add_argument('--config-data', type=str,
+                        help='Config YAML file where every image used for TRAINING, VALIDATION and TESTING has its path specified ~/<your_path>/config_data.yaml (Required)')
     parser.add_argument('-c', '--contrasts', type=str, metavar='N',
-                        help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required if no config file)')               
-    parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
-                        help='Specify label suffix (default= "_labels-disc-manual")') 
-    parser.add_argument('--suffix-img', type=str, default='',
-                        help='Specify img suffix (default= "")')
+                        help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required)')               
     
     # Model parameters
+    # Config load
+    parser.add_argument('--config-hg', type=str, default='',
+                        help='Config JSON file where every training parameter is stored based on the parser parameters Example: ~/<your_path>/config_hg.json')
+    # Parser load
     parser.add_argument('--ndiscs', type=int, default=11,
                         help='Number of discs to detect (default=11)')
     parser.add_argument('--wandb', default=True,
                         help='Train with wandb (default=True)')
-    parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
-                        help='Split ratio used for (train, val, test) (default=(0.8, 0.1, 0.1))')
     parser.add_argument('--resume', default=False, type=bool,
                         help='Resume the training from the last checkpoint (default=False)')  
     parser.add_argument('--attshow', default=False, type=bool,
@@ -497,26 +489,35 @@ if __name__ == '__main__':
     parser.add_argument('--skeleton-folder', type=str, default=os.path.abspath('src/dlh/skeletons'),
                         help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
     
-    if parser.parse_args().config == '':
+    if parser.parse_args().config_hg == '':
         # Parser mode
         args = parser.parse_args()
         
         # Create absolute paths
-        args.datapath = os.path.abspath(args.datapath)
         args.weight_folder = os.path.abspath(args.weight_folder)
         args.visual_folder = os.path.abspath(args.visual_folder)
         args.skeleton_folder = os.path.abspath(args.skeleton_folder)
-        
+
         # Create file name
-        json_name = f'config_{os.path.basename(args.datapath)}_{args.contrasts}_ndiscs_{args.ndiscs}.json'
+        json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
         
+        # Remove config-data, config-hg and contrasts from parser Namespace object
+        saved_args = copy.copy(args)
+        del saved_args.config_data
+        del saved_args.config_hg
+        del saved_args.contrasts
+
         # Create config file
-        parser2config(args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
+        parser2config(saved_args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
         
     else:
         # Config file mode
         # Extract training parameters from the config file
-        args = config2parser(parser.parse_args().config)
+        args = config2parser(parser.parse_args().config_hg)
+
+        # Add config-data and contrasts to parser
+        args.config_data = parser.parse_args().config_data
+        args.contrasts = parser.parse_args().contrasts
     
-    main(args)  # Train the hourglass network
-    create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing
+    #main(args)  # Train the hourglass network
+    #create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing
