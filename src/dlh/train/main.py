@@ -44,8 +44,6 @@ def main(args):
     contrasts = CONTRAST[args.contrasts]
     config_data = args.config_data
     wandb_mode = args.wandb
-    label_suffix = args.suffix_label
-    img_suffix = args.suffix_img
     
     # Create weights folder to store training weights
     if not os.path.exists(weight_folder):
@@ -59,15 +57,11 @@ def main(args):
     print('loading images...')
     imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
                                                                                     contrasts=contrasts, 
-                                                                                    split='train', 
-                                                                                    label_suffix=label_suffix,
-                                                                                    img_suffix=img_suffix)
+                                                                                    split='train')
     
     imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(config_data=config_data, 
                                                                             contrasts=contrasts, 
-                                                                            split='val', 
-                                                                            label_suffix=label_suffix,
-                                                                            img_suffix=img_suffix)
+                                                                            split='val')
     
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
@@ -431,7 +425,7 @@ if __name__ == '__main__':
     ## Parameters
     # General parameters
     parser.add_argument('--config-data', type=str,
-                        help='Config YAML file where every image used for TRAINING, VALIDATION and TESTING has its path specified ~/<your_path>/config_data.yaml (Required)')
+                        help='Config YAML file where every label used for TRAINING, VALIDATION and TESTING has its path specified ~/<your_path>/config_data.yaml (Required)')
     parser.add_argument('-c', '--contrasts', type=str, metavar='N',
                         help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required)')               
     
