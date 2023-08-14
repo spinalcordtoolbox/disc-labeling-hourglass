@@ -2,92 +2,75 @@ import os
 import argparse
 import random
 import math
+import itertools
 
 from dlh.data_management.utils import get_full_path, get_img_path_from_label_path, fetch_contrast
 from dlh.utils.test_utils import CONTRAST
 
+CONTRAST_LOOKUP = {tuple(sorted(value)): key for key, value in CONTRAST.items()}
+
+
 # Determine specified contrasts
 def init_data_config(args): 
-    '''
+    """
     Create a JSON configuration file from a TXT file where images paths are specified
-    '''
-    contrasts_list = []
-    config_dict = {}
+    """
+    if sum(args.split_ratio) != 1:
+        raise ValueError("split ratios don't add up exactly to 1")
 
-    # Check that summing split ratios equals 1 else raise error
-    if sum(list(args.split_ratio)) != 1.0:
-        raise ValueError(f'The sum of the ratios need to be equal to 1 see {args.split_ratio}')
+    # Get input paths, could be label files or image files,
+    # and make sure they all exist.
+    file_paths = [os.path.abspath(path) for path in open(args.txt).readlines()]
+    if args.type == 'LABEL':
+        label_paths = file_paths
+        img_paths = [get_img_path_from_label_path(lp) for lp in label_paths]
+        file_paths = label_paths + img_paths
+    elif args.type == 'IMAGE':
+        img_paths = file_paths
+    else:
+        raise ValueError(f"invalid args.type: {args.type}")
+    missing_paths = [
+        path for path in file_paths
+        if not os.path.isfile(path)
+    ]
+    if missing_paths:
+        raise ValueError(f"missing files:\n{'\n'.join(missing_paths)}")
 
-    # Load TXT file and extract paths
-    txt_path = os.path.abspath(args.txt)
-    with open(txt_path) as f:
-        txt_paths = f.readlines()
+    # Look up the right code for the set of contrasts present
+    contrasts = CONTRAST_LOOKUP[tuple(sorted(set(map(fetch_contrast, img_paths))))]
 
-    # Shuffle input TXT path
-    if args.shuffle:
-        txt_paths = random.shuffle(txt_paths)
+    config = {
+        'TYPE': args.type,
+        'CONTRASTS': contrasts,
+    }
 
-    # Start loop to create data configuration
-    for in_path in txt_paths:
-        # Get full path
-        path = get_full_path(in_path)
+    # Split into training, validation, and testing sets
+    config_paths = label_paths if args.type == 'LABEL' else img_paths
+    random.shuffle(config_paths)
+    splits = [0] + [
+        int(len(config_paths)) * ratio
+        for ratio in itertools.accumulate(args.split_ratio)
+    ]
+    for key, (begin, end) in zip(
+        ['TRAINING', 'VALIDATION', 'TESTING'],
+        itertools.pairwise(splits),
+    ):
+        config[key] = config_paths[begin:end]
 
-        # Check if path exist
-        if os.path.isfile(path):
-            # Extract contrast
-            if args.type == 'LABEL':
-                path = get_img_path_from_label_path(path)
-            contrast = fetch_contrast(path)
-            
-            # Add contrast in contrasts_list
-            if contrast not in contrasts_list:
-                contrasts_list.append(contrast)
-            
-        else:
-            txt_paths.remove(in_path)
-            print(f'{in_path} was not added beacause does not exists')
-        
-        # Configure and append data split ratio
-        nb_paths = len(txt_paths)
-        idx = 0
-        for pos, ratio in enumerate(args.split_ratio):
-            if ratio != 0:
-                split = ['TRAINING', 'VALIDATION', 'TESTING'][pos]
-                config_dict[split] = [idx:nb_paths*sum(args.split_ratio[:])] 
-                yml_lines.insert(idx, split)
-                idx += math.ceil(nb_paths*ratio)
-        
-        # Append data type
-        config_dict['TYPE'] = args.type
-
-        # Append contrasts
-        contrast_found = False
-        for key, value in CONTRAST.items():
-            if value.sort() == contrasts_list.sort():
-                yml_lines.extend(['CONTRAST', '- ' + key])
-                contrast_found = True
-        if not contrast_found:
-            print(f'ERROR: Contrasts {contrasts_list} are not handled yet')
-        
-        # Create YAML data configuration
-        yml_path = os.path.join(txt_path.replace('.txt', '.yml'))
-        with open(yml_path, 'w')as f:
-            f.writelines(yml_lines)
+    # Save the config
+    config_path = args.txt.removesuffix('.txt') + '.json'
+    json.dump(config, open(config_path, 'w'))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create config YAML from a TXT file which contains list of paths')
     
     ## Parameters
-    parser.add_argument('--txt', type=str,
+    parser.add_argument('--txt',
                         help='Path to TXT file that contains only image paths. (Required)')
-    parser.add_argument('--type', type=str,
+    parser.add_argument('--type', choices=('LABEL', 'IMAGE'),
                         help='Type of paths specified. Choices "LABEL" or "IMAGE". (Required)')
     parser.add_argument('--split-ratio', type=tuple, default=(0.8, 0.1, 0.1),
                         help='Split ratio (TRAINING, VALIDATION, TESTING): Example (0.8, 0.1, 0.1) or (0, 0, 1) for TESTING only. Default=(0.8, 0.1, 0.1)')
-    # parser.add_argument('--folds', type=int, default=1,
-    #                     help='Number of configurations with different data folds')
-    parser.add_argument('--shuffle', type=bool, default=True,
-                        help='Shuffle input paths. Default=True')
     
     init_data_config(parser.parse_args())
