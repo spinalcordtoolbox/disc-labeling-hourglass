@@ -64,6 +64,7 @@ def init_data_config(args):
 
 def pairwise(iterable):
     # pairwise('ABCDEFG') --> AB BC CD DE EF FG
+    # based on https://docs.python.org/3.11/library/itertools.html
     a, b = itertools.tee(iterable)
     next(b, None)
     return zip(a, b)
