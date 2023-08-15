@@ -1,32 +1,8 @@
 import os
 import re
-import sys
-import yaml
+from pathlib import Path
 
-def fetch_yaml_config(config_file):
-    """
-    Fetch configuration from YAML file
-    :param config_file: YAML file
-    :return: yaml dictionary
-    Based on https://github.com/spinalcordtoolbox/manual-correction
-    """
-    config_file = os.path.abspath(config_file)
-    # Check if file exist
-    if os.path.isfile(config_file):
-        fname_yml = config_file
-    else:
-        sys.exit("ERROR: Input yml file {} does not exist or path is wrong.".format(config_file))
-    
-    # Fetch dict from yml
-    with open(fname_yml, 'r') as stream:
-        try:
-            dict_yml = yaml.safe_load(stream)
-        except yaml.YAMLError as exc:
-            print(exc)
-
-    return dict_yml
-
-def get_img_path_from_label_path(path):
+def get_img_path_from_label_path(str_path):
     """
     This function does 2 things: ⚠️ Files need to be stored in a BIDS compliant dataset
         - Step 1: Remove label suffix (e.g. "_labels-disc-manual"). The suffix is always between the MRI contrast and the file extension.
@@ -36,23 +12,27 @@ def get_img_path_from_label_path(path):
     :return: img path. Example: /<path_to_BIDS_data>/sub-amuALT/anat/sub-amuALT_T1w.nii.gz
 
     """
+    # Load path
+    path = Path(str_path)
+
     # Extract file extension
-    ext = '.' + '.'.join(path.split('.')[1:])
+    ext = ''.join(path.suffixes)
 
     # Get img name
-    img_name = '_'.join(os.path.basename(path).split('_')[:-1])
+    img_name = '_'.join(path.name.split('_')[:-1]) + ext
     
     # Create a list of the directories
-    dir_list = path.split('/')
+    dir_list = str(path.parent).split('/')
 
     # Remove "derivatives" and "labels" folders
     derivatives_idx = dir_list.index('derivatives')
-    dir_path = '/' + '/'.join(dir_list[0:derivatives_idx] + dir_list[derivatives_idx+2:])
+    dir_path = '/'.join(dir_list[0:derivatives_idx] + dir_list[derivatives_idx+2:])
 
     # Recreate img path
-    img_path = dir_path + img_name + ext
+    img_path = os.path.join(dir_path, img_name)
 
     return img_path
+
 
 def fetch_subject_and_session(filename_path):
     """
@@ -78,3 +58,12 @@ def fetch_subject_and_session(filename_path):
     # *? - match the previous element as few times as possible (zero or more times)
 
     return subjectID, sessionID, filename, contrast
+
+
+def fetch_contrast(filename_path):
+    '''
+    Extract MRI contrast from a BIDS-compatible filename/filepath
+    The function handles images only.
+    :param filename_path: image file path or file name. (e.g sub-001_ses-01_T1w.nii.gz)
+    '''
+    return filename_path.rstrip(''.join(Path(filename_path).suffixes)).split('_')[-1]
