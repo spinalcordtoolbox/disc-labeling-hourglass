@@ -19,6 +19,7 @@ from torch.utils.data import DataLoader
 import copy
 import wandb
 import copy
+import json
 
 from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
@@ -41,9 +42,14 @@ def main(args):
     best_acc = 0
     weight_folder = args.weight_folder
     vis_folder = args.visual_folder
-    contrasts = CONTRAST[args.contrasts]
-    config_data = args.config_data
     wandb_mode = args.wandb
+
+    # Read json file and create a dictionary
+    with open(args.config_data, "r") as file:
+        config_data = json.load(file)
+    
+    # Fetch contrast info from config data
+    contrast_str = config_data['CONTRASTS'] # contrast_str is a unique string representing all the contrasts
     
     # Create weights folder to store training weights
     if not os.path.exists(weight_folder):
@@ -56,12 +62,10 @@ def main(args):
     # Loading images for training and validation
     print('loading images...')
     imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
-                                                                                    contrasts=contrasts, 
-                                                                                    split='train')
+                                                                                    split='TRAIN')
     
     imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(config_data=config_data, 
-                                                                            contrasts=contrasts, 
-                                                                            split='val')
+                                                                            split='VALIDATION')
     
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
@@ -125,18 +129,18 @@ def main(args):
     if args.resume:
        print("=> loading checkpoint to continue learing process")
        if args.att:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
        else:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
 
     # evaluation only
     if args.evaluate:
         print('\nEvaluation only')
         print('loading the pretrained weight')
         if args.att:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
         else:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
 
         if args.attshow:
             loss, acc = show_attention(MRI_val_loader, model)
@@ -190,9 +194,9 @@ def main(args):
         if valid_acc > best_acc:
            state = copy.deepcopy({'model_weights': model.state_dict()})
            if args.att:
-                torch.save(state, f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
+                torch.save(state, f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
            else:
-                torch.save(state, f'{weight_folder}/model_{args.contrasts}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
+                torch.save(state, f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
            best_acc = valid_acc
            best_acc_epoch = epoch + 1
     
@@ -201,7 +205,7 @@ def main(args):
         wandb.log({"best_accuracy": best_acc, "best_accuracy_epoch": best_acc_epoch})
     
         # 🐝 version your model
-        best_model_path = f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
+        best_model_path = f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
         model_artifact = wandb.Artifact("hourglass", 
                                         type="model",
                                         description="Hourglass network for intervertebral discs labeling",
@@ -420,20 +424,20 @@ def show_attention(val_loader, model):
 
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Training hourglass network')
+    parser = argparse.ArgumentParser(description='To train the hourglass network\n You MUST specify:\n'
+                                      ' - a JSON data configuration (see data_management/init_data_config.py)'
+                                      ' - a JSON configuration file with all the training parameters (Method 1) OR you can specify the paramters using the parser (Method 2)')
     
     ## Parameters
-    # General parameters
+    # Data parameters
     parser.add_argument('--config-data', type=str,
-                        help='Config YAML file where every label used for TRAINING, VALIDATION and TESTING has its path specified ~/<your_path>/config_data.yaml (Required)')
-    parser.add_argument('-c', '--contrasts', type=str, metavar='N',
-                        help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required)')               
+                        help='Config JSON file where every label used for TRAINING, VALIDATION and TESTING has its path specified ~/<your_path>/config_data.json (Required)')               
     
-    # Model parameters
-    # Config load
-    parser.add_argument('--config-hg', type=str, default='',
-                        help='Config JSON file where every training parameter is stored based on the parser parameters Example: ~/<your_path>/config_hg.json')
-    # Parser load
+    # Training configuration and model parameters
+    # Pre-determined config (Method 1)
+    parser.add_argument('--config-train', type=str, default='',
+                        help='Config JSON file where every training parameter is stored. Example: ~/<your_path>/config_train.json')
+    # Parser to configure training (Method 2)
     parser.add_argument('--ndiscs', type=int, default=11,
                         help='Number of discs to detect (default=11)')
     parser.add_argument('--wandb', default=True,
@@ -483,7 +487,7 @@ if __name__ == '__main__':
     parser.add_argument('--skeleton-folder', type=str, default=os.path.abspath('src/dlh/skeletons'),
                         help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
     
-    if parser.parse_args().config_hg == '':
+    if parser.parse_args().config_train == '':
         # Parser mode
         args = parser.parse_args()
         
@@ -495,11 +499,10 @@ if __name__ == '__main__':
         # Create file name
         json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
         
-        # Remove config-data, config-hg and contrasts from parser Namespace object
-        saved_args = copy.copy(args)
+        # Remove config-data and config-train from parser Namespace object
+        saved_args = copy.copy(args) # To do a REAL copy of the object
         del saved_args.config_data
-        del saved_args.config_hg
-        del saved_args.contrasts
+        del saved_args.config_train
 
         # Create config file
         parser2config(saved_args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
@@ -507,11 +510,10 @@ if __name__ == '__main__':
     else:
         # Config file mode
         # Extract training parameters from the config file
-        args = config2parser(parser.parse_args().config_hg)
+        args = config2parser(parser.parse_args().config_train)
 
-        # Add config-data and contrasts to parser
+        # Add config-data to parser
         args.config_data = parser.parse_args().config_data
-        args.contrasts = parser.parse_args().contrasts
     
     #main(args)  # Train the hourglass network
     #create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing

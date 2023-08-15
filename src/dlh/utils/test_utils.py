@@ -16,7 +16,7 @@ from torchvision.utils import make_grid
 
 from dlh.utils.train_utils import apply_preprocessing
 from dlh.utils.data2array import get_midNifti
-from dlh.data_management.utils import fetch_yaml_config, get_img_path_from_label_path, fetch_subject_and_session
+from dlh.data_management.utils import get_img_path_from_label_path, fetch_subject_and_session
 
 
 ## Variables
@@ -179,18 +179,16 @@ def load_niftii_split(config_data, split='TRAIN'):
         - the subjects names
         - the image slice shape
     
-    :param config_data: Config YAML file where every label used for TRAINING, VALIDATION and TESTING has its path specified
+    :param config_data: Config dict where every label used for TRAINING, VALIDATION and TESTING has its path specified
     :param split: Split of the data needed ('TRAIN', 'VALIDATION', 'TEST')
     '''
-    # Loading configuration from YAML
-    data_dict = fetch_yaml_config(config_data)
 
-    # Check config mode to ensure that labels paths are specified
-    if data_dict['MODE'] != 'LABELS':
-        print('MODE LABELS not detected: PLZ specify paths to labels for training')
+    # Check config type to ensure that labels paths are specified and not images
+    if config_data['TYPE'] != 'LABEL':
+        raise ValueError('MODE LABELS not detected: PLZ specify paths to labels for training in config file')
     
     # Get file paths based on split
-    label_paths = data_dict[split]
+    label_paths = config_data[split]
     
     # Init progression bar
     bar = Bar(f'Load {split} data with pre-processing', max=len(label_paths))
