@@ -33,7 +33,7 @@ def create_skeleton(args):
     # Loading images for training
     print('loading images...')
     imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
-                                                                                   split='TRAIN')
+                                                                                   split='TRAINING')
 
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 

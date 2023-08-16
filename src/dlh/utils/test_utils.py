@@ -201,7 +201,6 @@ def load_niftii_split(config_data, split='TRAIN'):
     for path in label_paths:
         img_path = get_img_path_from_label_path(path)
         label_path = path
-        subject, sessionID, filename, contrast = fetch_subject_and_session(img_path)
         if not os.path.exists(img_path) or not os.path.exists(label_path):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
         else:
@@ -210,6 +209,7 @@ def load_niftii_split(config_data, split='TRAIN'):
             imgs.append(image)
             masks.append(mask)
             discs_labels_list.append(discs_labels)
+            subject, sessionID, filename, contrast = fetch_subject_and_session(img_path)
             subjects.append(subject)
             shapes.append(get_midNifti(img_path).shape)
         

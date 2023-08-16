@@ -62,7 +62,7 @@ def main(args):
     # Loading images for training and validation
     print('loading images...')
     imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
-                                                                                    split='TRAIN')
+                                                                                    split='TRAINING')
     
     imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(config_data=config_data, 
                                                                             split='VALIDATION')
@@ -390,7 +390,6 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode):
                         dice=loss_dices.avg*100
                         )
             bar.next()
-
         bar.finish()
     return losses.avg, acces.avg, loss_dices.avg
 
@@ -425,7 +424,7 @@ def show_attention(val_loader, model):
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='To train the hourglass network\n You MUST specify:\n'
-                                      ' - a JSON data configuration (see data_management/init_data_config.py)'
+                                      ' - a JSON data configuration (see data_management/init_data_config.py)\n'
                                       ' - a JSON configuration file with all the training parameters (Method 1) OR you can specify the paramters using the parser (Method 2)')
     
     ## Parameters
@@ -515,5 +514,5 @@ if __name__ == '__main__':
         # Add config-data to parser
         args.config_data = parser.parse_args().config_data
     
-    #main(args)  # Train the hourglass network
-    #create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing
+    main(args)  # Train the hourglass network
+    create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing
