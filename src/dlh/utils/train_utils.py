@@ -396,6 +396,7 @@ def apply_preprocessing(img_path, target_path=''):
         
     if target_path != '':
         discs_labels = mask2label(target_path)
+        discs_labels = [coord for coord in discs_labels if coord[-1] < 25] # Remove labels superior to 25, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
         mask = extract_all(discs_labels, shape_im=image_in.shape)
         mask = normalize(mask[0, :, :])
         mask = cv2.resize(mask, (256, 256))
