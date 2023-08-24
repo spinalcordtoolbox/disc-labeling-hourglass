@@ -60,7 +60,7 @@ def init_data_config(args):
 
     # Save the config
     config_path = args.txt.replace('.txt', '') + '.json'
-    json.dump(config, open(config_path, 'w'))
+    json.dump(config, open(config_path, 'w'), indent=4)
 
 def pairwise(iterable):
     # pairwise('ABCDEFG') --> AB BC CD DE EF FG
