@@ -170,7 +170,7 @@ def closest_node(node, nodes):
 
 
 ##
-def load_niftii_split(config_data, split='TRAIN'):
+def load_niftii_split(config_data, split='TRAINING'):
     '''
     This function output 5 lists corresponding to:
         - the middle slices extracted from the niftii images
@@ -179,13 +179,13 @@ def load_niftii_split(config_data, split='TRAIN'):
         - the subjects names
         - the image slice shape
     
-    :param config_data: Config dict where every label used for TRAINING, VALIDATION and TESTING has its path specified
-    :param split: Split of the data needed ('TRAIN', 'VALIDATION', 'TEST')
+    :param config_data: Config dict where every label used for TRAINING, VALIDATION and/or TESTING has its path specified
+    :param split: Split of the data needed ('TRAINING', 'VALIDATION', 'TESTING')
     '''
 
     # Check config type to ensure that labels paths are specified and not images
     if config_data['TYPE'] != 'LABEL':
-        raise ValueError('MODE LABELS not detected: PLZ specify paths to labels for training in config file')
+        raise ValueError('MODE LABEL not detected: PLZ specify paths to labels for training in config file')
     
     # Get file paths based on split
     label_paths = config_data[split]
@@ -198,9 +198,8 @@ def load_niftii_split(config_data, split='TRAIN'):
     discs_labels_list = []
     subjects = []
     shapes = []
-    for path in label_paths:
-        img_path = get_img_path_from_label_path(path)
-        label_path = path
+    for label_path in label_paths:
+        img_path = get_img_path_from_label_path(label_path)
         if not os.path.exists(img_path) or not os.path.exists(label_path):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
         else:
