@@ -185,7 +185,7 @@ def load_niftii_split(config_data, split='TRAINING'):
 
     # Check config type to ensure that labels paths are specified and not images
     if config_data['TYPE'] != 'LABEL':
-        raise ValueError('MODE LABEL not detected: PLZ specify paths to labels for training in config file')
+        raise ValueError('TYPE LABEL not detected: PLZ specify paths to labels for training in config file')
     
     # Get file paths based on split
     label_paths = config_data[split]
@@ -228,13 +228,9 @@ def load_img_only(config_data, split='TESTING'):
     :param config_data: Config dict where every image used for TRAINING, VALIDATION and/or TESTING has its path specified
     :param split: Split of the data needed ('TRAINING', 'VALIDATION', 'TESTING')
     '''
-
-    # Check config type to ensure that image paths are specified and not labels
-    if config_data['TYPE'] != 'IMAGE':
-        raise ValueError('MODE IMAGE not detected: PLZ specify paths to images in config file')
     
     # Get file paths based on split
-    img_paths = config_data[split]
+    paths = config_data[split]
     
     # Init progression bar
     bar = Bar(f'Load {split} data with pre-processing', max=len(img_paths))
@@ -242,7 +238,16 @@ def load_img_only(config_data, split='TESTING'):
     imgs = []
     subjects = []
     shapes = []
-    for img_path in img_paths:
+    for path in paths:
+        # Check TYPE to get img_path
+        if config_data['TYPE'] == 'IMAGE':
+            img_path = path
+        elif config_data['TYPE'] == 'LABEL':
+            img_path = get_img_path_from_label_path(path)
+        else:
+            raise ValueError('TYPE error: The TYPE can only be "IMAGE" or "LABEL"')
+
+        # Check if img_path exists
         if not os.path.exists(img_path):
             print(f'Error while loading subject\n {img_path} does not exist')
         else:
