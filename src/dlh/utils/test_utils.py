@@ -259,7 +259,7 @@ def load_img_only(config_data, split='TESTING'):
             shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{img_paths.index(img_path)+1}/{len(img_paths)}'
+        bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
     return imgs, subjects, shapes
