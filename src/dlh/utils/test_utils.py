@@ -218,45 +218,43 @@ def load_niftii_split(config_data, split='TRAINING'):
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
 
-def load_img_only(datapath, contrasts, img_suffix=''):
+def load_img_only(config_data, split='TESTING'):
     '''
-    This function output 2 lists corresponding to:
+    This function output 3 lists corresponding to:
         - the middle slice extracted from the niftii images
         - the subjects names
+        - the images shapes
     
-    :param datapath: Path to dataset
-    :param contrasts: Contrasts of the images loaded
-    :param img_suffix: The image suffix: Example='_acq-sagittal'
+    :param config_data: Config dict where every image used for TRAINING, VALIDATION and/or TESTING has its path specified
+    :param split: Split of the data needed ('TRAINING', 'VALIDATION', 'TESTING')
     '''
-    # Loading dataset
-    dir_list = os.listdir(datapath)
-    dir_list.sort() # TODO: check if sorting the data is relevant --> mixing data could be more relevant 
+
+    # Check config type to ensure that image paths are specified and not labels
+    if config_data['TYPE'] != 'IMAGE':
+        raise ValueError('MODE IMAGE not detected: PLZ specify paths to images in config file')
     
-    nb_dir = len(dir_list)
-    begin = 0
-    end = int(np.round(nb_dir)) # The full dataset is loaded
+    # Get file paths based on split
+    img_paths = config_data[split]
     
     # Init progression bar
-    bar = Bar(f'Load full data with pre-processing', max=len(dir_list[begin:end]))
+    bar = Bar(f'Load {split} data with pre-processing', max=len(img_paths))
     
     imgs = []
     subjects = []
     shapes = []
-    for dir_name in dir_list[begin:end]:
-        if dir_name.startswith('sub'):
-            for contrast in contrasts:
-                img_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + '.nii.gz')
-                if not os.path.exists(img_path):
-                    print(f'Error while importing {dir_name}\n {img_path} may not exist')
-                else:
-                    # Applying preprocessing steps
-                    image = apply_preprocessing(img_path)
-                    imgs.append(image)
-                    subjects.append(dir_name)
-                    shapes.append(get_midNifti(img_path).shape)
+    for img_path in img_paths:
+        if not os.path.exists(img_path):
+            print(f'Error while loading subject\n {img_path} does not exist')
+        else:
+            # Applying preprocessing steps
+            image = apply_preprocessing(img_path)
+            imgs.append(image)
+            subject, sessionID, filename, contrast = fetch_subject_and_session(img_path)
+            subjects.append(subject)
+            shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{dir_list[begin:end].index(dir_name)+1}/{len(dir_list[begin:end])}'
+        bar.suffix  = f'{img_paths.index(img_path)+1}/{len(img_paths)}'
         bar.next()
     bar.finish()
     return imgs, subjects, shapes
