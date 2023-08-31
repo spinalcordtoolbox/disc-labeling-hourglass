@@ -40,7 +40,7 @@ def create_skeleton(args):
                                        targets=masks_train,
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
-                                       use_flip = True,
+                                       use_flip = False,
                                        load_mode='val'
                                        )
     
