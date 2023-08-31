@@ -495,6 +495,9 @@ if __name__ == '__main__':
         args.visual_folder = os.path.abspath(args.visual_folder)
         args.skeleton_folder = os.path.abspath(args.skeleton_folder)
 
+        # Add training contrast
+        args.train_contrast = json.load(args.config_data)['CONTRASTS']
+
         # Create file name
         json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
         
@@ -511,8 +514,21 @@ if __name__ == '__main__':
         # Extract training parameters from the config file
         args = config2parser(parser.parse_args().config_train)
 
+        # Update training contrast
+        args.train_contrast = json.load(parser.parse_args().config_data)['CONTRASTS']
+
+        # Create file name
+        json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
+
+        # Create a new json updated in the weight folder
+        saved_args = copy.copy(args)
+        parser2config(saved_args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
+
         # Add config-data to parser
         args.config_data = parser.parse_args().config_data
+
+        
+
     
     main(args)  # Train the hourglass network
     create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing
