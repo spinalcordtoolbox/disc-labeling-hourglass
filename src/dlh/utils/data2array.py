@@ -13,7 +13,7 @@ from __future__ import print_function
 import numpy as np
 import matplotlib
 
-from spinalcordtoolbox.image import Image # TODO: Check out to replace this import to avoid dependency
+from dlh.utils.image import Image
 
 matplotlib.use("Agg")
 
