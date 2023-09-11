@@ -52,12 +52,12 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
             center_list[str(idy)] = [t[::-1] for t in centers[1:]]
             Final[idx, idy] = ych_fin
             
+        if np.prod(count_list)>25000:
+            raise ValueError("Trop de possibilités")
         ups = []
         for c in count_list:
             ups.append(range(c))
         combs = cartesian(ups) # Create all the possible discs combinations
-        if len(combs)>10:
-            print("Trop de possibilités")
         best_loss = np.Inf
         best_skeleton = []
         for comb in combs:
@@ -213,7 +213,7 @@ def load_niftii_split(config_data, split='TRAINING'):
             shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{label_paths.index(path)+1}/{len(label_paths)}'
+        bar.suffix  = f'{label_paths.index(label_path)+1}/{len(label_paths)}'
         bar.next()
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
@@ -233,7 +233,7 @@ def load_img_only(config_data, split='TESTING'):
     paths = config_data[split]
     
     # Init progression bar
-    bar = Bar(f'Load {split} data with pre-processing', max=len(img_paths))
+    bar = Bar(f'Load {split} data with pre-processing', max=len(paths))
     
     imgs = []
     subjects = []
