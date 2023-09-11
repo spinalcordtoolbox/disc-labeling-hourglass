@@ -43,9 +43,10 @@ pip install -e .
 ```
 (in development) --> cf https://github.com/spinalcordtoolbox/disc-labeling-hourglass/issues/18
 
-3. Gather only the relevant images for the training (The input dataset needs to be in [BIDS](https://bids.neuroimaging.io/) format): the `DATAPATH` corresponds to the path to the input BIDS compliant dataset and `VERTEBRAL_DATA` corresponds to the path to the output folder. The free multi-center spinegeneric dataset is available in https://github.com/spine-generic/data-multi-subject.
+3. Gather only the relevant images for the training in a TEXT file (The input dataset needs to be in [BIDS](https://bids.neuroimaging.io/) format): The free multi-center spinegeneric dataset is available in https://github.com/spine-generic/data-multi-subject.
 ```Bash
-python src/dlh/data_management/gather_data.py --datapath DATAPATH -o VERTEBRAL_DATA --suffix-img SUFFIX_IMG --suffix-label SUFFIX_LABEL
+find ~+ -type f -name *_label*.nii.gz | grep -v MTS | sort > ../../data_config/spinegeneric_vert.txt
+python src/dlh/data_management/init_data_config.py --txt CONFIG_DATA --type LABEL
 ```
 
 4. Train hourglass on the vertebral data

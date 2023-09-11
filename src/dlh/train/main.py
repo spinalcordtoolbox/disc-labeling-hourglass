@@ -18,6 +18,7 @@ from progress.bar import Bar
 from torch.utils.data import DataLoader 
 import copy
 import wandb
+import copy
 import json
 
 from dlh.models.hourglass import hg
@@ -41,11 +42,14 @@ def main(args):
     best_acc = 0
     weight_folder = args.weight_folder
     vis_folder = args.visual_folder
-    contrasts = CONTRAST[args.contrasts]
-    datapath = args.datapath
     wandb_mode = args.wandb
-    label_suffix = args.suffix_label
-    img_suffix = args.suffix_img
+
+    # Read json file and create a dictionary
+    with open(args.config_data, "r") as file:
+        config_data = json.load(file)
+    
+    # Fetch contrast info from config data
+    contrast_str = config_data['CONTRASTS'] # contrast_str is a unique string representing all the contrasts
     
     # Create weights folder to store training weights
     if not os.path.exists(weight_folder):
@@ -57,19 +61,11 @@ def main(args):
     
     # Loading images for training and validation
     print('loading images...')
-    imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(datapath=datapath, 
-                                                                                    contrasts=contrasts, 
-                                                                                    split='train', 
-                                                                                    split_ratio=args.split_ratio,
-                                                                                    label_suffix=label_suffix,
-                                                                                    img_suffix=img_suffix)
+    imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
+                                                                                    split='TRAINING')
     
-    imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(datapath=datapath, 
-                                                                            contrasts=contrasts, 
-                                                                            split='val', 
-                                                                            split_ratio=args.split_ratio,
-                                                                            label_suffix=label_suffix,
-                                                                            img_suffix=img_suffix)
+    imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(config_data=config_data, 
+                                                                            split='VALIDATION')
     
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
@@ -133,18 +129,18 @@ def main(args):
     if args.resume:
        print("=> loading checkpoint to continue learing process")
        if args.att:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
        else:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
 
     # evaluation only
     if args.evaluate:
         print('\nEvaluation only')
         print('loading the pretrained weight')
         if args.att:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
         else:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{args.contrasts}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
 
         if args.attshow:
             loss, acc = show_attention(MRI_val_loader, model)
@@ -198,9 +194,9 @@ def main(args):
         if valid_acc > best_acc:
            state = copy.deepcopy({'model_weights': model.state_dict()})
            if args.att:
-                torch.save(state, f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
+                torch.save(state, f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
            else:
-                torch.save(state, f'{weight_folder}/model_{args.contrasts}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
+                torch.save(state, f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
            best_acc = valid_acc
            best_acc_epoch = epoch + 1
     
@@ -209,7 +205,7 @@ def main(args):
         wandb.log({"best_accuracy": best_acc, "best_accuracy_epoch": best_acc_epoch})
     
         # 🐝 version your model
-        best_model_path = f'{weight_folder}/model_{args.contrasts}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
+        best_model_path = f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
         model_artifact = wandb.Artifact("hourglass", 
                                         type="model",
                                         description="Hourglass network for intervertebral discs labeling",
@@ -394,7 +390,6 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode):
                         dice=loss_dices.avg*100
                         )
             bar.next()
-
         bar.finish()
     return losses.avg, acces.avg, loss_dices.avg
 
@@ -428,30 +423,24 @@ def show_attention(val_loader, model):
 
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Training hourglass network')
+    parser = argparse.ArgumentParser(description='To train the hourglass network\n You MUST specify:\n'
+                                      ' - a JSON data configuration (see data_management/init_data_config.py)\n'
+                                      ' - a JSON configuration file with all the training parameters (Method 1) OR you can specify the paramters using the parser (Method 2)')
     
-    ## Config file mode
-    parser.add_argument('--config', type=str, default='',
-                        help='Path to the training config file Example: ~/<your_path>/config.json')
+    ## Parameters
+    # Data parameters
+    parser.add_argument('--config-data', type=str,
+                        help='Config JSON file where every label used for TRAINING, VALIDATION and TESTING has its path specified ~/<your_path>/config_data.json (Required)')               
     
-    ## Parameters (no config file mode)
-    # General parameters
-    parser.add_argument('--datapath', type=str,
-                        help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required if no config file)')
-    parser.add_argument('-c', '--contrasts', type=str, metavar='N',
-                        help='MRI contrasts: choices=["t1", "t2", "t1_t2"] (Required if no config file)')               
-    parser.add_argument('--suffix-label', type=str, default='_labels-disc-manual',
-                        help='Specify label suffix (default= "_labels-disc-manual")') 
-    parser.add_argument('--suffix-img', type=str, default='',
-                        help='Specify img suffix (default= "")')
-    
-    # Model parameters
+    # Training configuration and model parameters
+    # Pre-determined config (Method 1)
+    parser.add_argument('--config-train', type=str, default='',
+                        help='Config JSON file where every training parameter is stored. Example: ~/<your_path>/config_train.json')
+    # Parser to configure training (Method 2)
     parser.add_argument('--ndiscs', type=int, default=11,
                         help='Number of discs to detect (default=11)')
     parser.add_argument('--wandb', default=True,
                         help='Train with wandb (default=True)')
-    parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
-                        help='Split ratio used for (train, val, test) (default=(0.8, 0.1, 0.1))')
     parser.add_argument('--resume', default=False, type=bool,
                         help='Resume the training from the last checkpoint (default=False)')  
     parser.add_argument('--attshow', default=False, type=bool,
@@ -497,26 +486,49 @@ if __name__ == '__main__':
     parser.add_argument('--skeleton-folder', type=str, default=os.path.abspath('src/dlh/skeletons'),
                         help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
     
-    if parser.parse_args().config == '':
+    if parser.parse_args().config_train == '':
         # Parser mode
         args = parser.parse_args()
         
         # Create absolute paths
-        args.datapath = os.path.abspath(args.datapath)
         args.weight_folder = os.path.abspath(args.weight_folder)
         args.visual_folder = os.path.abspath(args.visual_folder)
         args.skeleton_folder = os.path.abspath(args.skeleton_folder)
-        
+
+        # Add training contrast
+        args.train_contrast = json.load(args.config_data)['CONTRASTS']
+
         # Create file name
-        json_name = f'config_{os.path.basename(args.datapath)}_{args.contrasts}_ndiscs_{args.ndiscs}.json'
+        json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
         
+        # Remove config-data and config-train from parser Namespace object
+        saved_args = copy.copy(args) # To do a REAL copy of the object
+        del saved_args.config_data
+        del saved_args.config_train
+
         # Create config file
-        parser2config(args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
+        parser2config(saved_args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
         
     else:
         # Config file mode
         # Extract training parameters from the config file
-        args = config2parser(parser.parse_args().config)
+        args = config2parser(parser.parse_args().config_train)
+
+        # Update training contrast
+        args.train_contrast = json.load(parser.parse_args().config_data)['CONTRASTS']
+
+        # Create file name
+        json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
+
+        # Create a new json updated in the weight folder
+        saved_args = copy.copy(args)
+        parser2config(saved_args, path_out=os.path.join(parser.parse_args().weight_folder, json_name))  # Create json file with training parameters
+
+        # Add config-data to parser
+        args.config_data = parser.parse_args().config_data
+
+        
+
     
     main(args)  # Train the hourglass network
     create_skeleton(args)  # Create skeleton file to improve hourglass accuracy during testing

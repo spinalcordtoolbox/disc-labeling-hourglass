@@ -4,7 +4,7 @@ import sys
 import argparse
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import numpy as np
-import pickle
+import json
 from torch.utils.data import DataLoader 
 import cv2
 
@@ -15,29 +15,32 @@ def create_skeleton(args):
     '''
     Create Skelet file to improve disc estimation of the hourglass network
     '''
-    ## Load the training dataset
-    datapath = args.datapath
-    contrasts = CONTRAST[args.contrasts]
+ 
     ndiscs = args.ndiscs 
     out_dir = args.skeleton_folder
     
+    # Read json file and create a dictionary
+    with open(args.config_data, "r") as file:
+        config_data = json.load(file)
+    
+    # Fetch contrast info from config data
+    contrast_str = config_data['CONTRASTS'] # contrast_str is a unique string representing all the contrasts
+
     # Create skeleton folder to store training skeletons
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
 
     # Loading images for training
     print('loading images...')
-    imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(datapath=datapath, 
-                                                                                   contrasts=contrasts, 
-                                                                                   split='train', 
-                                                                                   split_ratio=args.split_ratio)
+    imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
+                                                                                   split='TRAINING')
 
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
                                        targets=masks_train,
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
-                                       use_flip = True,
+                                       use_flip = False,
                                        load_mode='val'
                                        )
     
@@ -76,7 +79,7 @@ def create_skeleton(args):
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
         
-    np.save(os.path.join(out_dir, f'{args.contrasts}_Skelet_ndiscs_{ndiscs}.npy'), Skelet)
+    np.save(os.path.join(out_dir, f'{contrast_str}_Skelet_ndiscs_{ndiscs}.npy'), Skelet)
     
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Training hourglass network')

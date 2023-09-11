@@ -16,6 +16,7 @@ from torchvision.utils import make_grid
 
 from dlh.utils.train_utils import apply_preprocessing
 from dlh.utils.data2array import get_midNifti
+from dlh.data_management.utils import get_img_path_from_label_path, fetch_subject_and_session
 
 
 ## Variables
@@ -169,109 +170,96 @@ def closest_node(node, nodes):
 
 
 ##
-def load_niftii_split(datapath, contrasts, split='train', split_ratio=(0.8, 0.1, 0.1), label_suffix='_labels-disc-manual', img_suffix=''):
+def load_niftii_split(config_data, split='TRAINING'):
     '''
     This function output 5 lists corresponding to:
-        - the middle slice extracted from the niftii images
-        - the corresponding masks with discs labels
+        - the middle slices extracted from the niftii images
+        - the corresponding 2D masks with discs labels
         - the discs labels
         - the subjects names
         - the image slice shape
     
-    :param datapath: Path to dataset
-    :param contrasts: Contrasts of the images loaded
-    :param split: Split of the data needed ('train', 'val', 'test', 'full')
-    :param split_ratio: Ratio used to split the data: split_ratio=(train, val, test)
-    :param label_suffix: The label suffix: Example='_label-discs'
-    :param img_suffix: The image suffix: Example='_acq-sagittal'
+    :param config_data: Config dict where every label used for TRAINING, VALIDATION and/or TESTING has its path specified
+    :param split: Split of the data needed ('TRAINING', 'VALIDATION', 'TESTING')
     '''
-    # Loading dataset
-    dir_list = os.listdir(datapath)
-    dir_list.sort() # TODO: check if sorting the data is relevant --> mixing data could be more relevant 
+
+    # Check config type to ensure that labels paths are specified and not images
+    if config_data['TYPE'] != 'LABEL':
+        raise ValueError('TYPE LABEL not detected: PLZ specify paths to labels for training in config file')
     
-    nb_dir = len(dir_list)
-    if split == 'train':
-        begin = 0
-        end = int(np.round(nb_dir * split_ratio[0]))
-    elif split == 'val':
-        begin = int(np.round(nb_dir * split_ratio[0]))
-        end = int(np.round(nb_dir * (split_ratio[0]+split_ratio[1])))
-    elif split == 'test':
-        begin = int(np.round(nb_dir * (split_ratio[0]+split_ratio[1])))
-        end = int(np.round(nb_dir * 1))
-    else:
-        begin = 0
-        end = int(np.round(nb_dir))
+    # Get file paths based on split
+    label_paths = config_data[split]
     
     # Init progression bar
-    bar = Bar(f'Load {split} data with pre-processing', max=len(dir_list[begin:end]))
+    bar = Bar(f'Load {split} data with pre-processing', max=len(label_paths))
     
     imgs = []
     masks = []
     discs_labels_list = []
     subjects = []
     shapes = []
-    for dir_name in dir_list[begin:end]:
-        if dir_name.startswith('sub'):
-            for contrast in contrasts:
-                img_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + '.nii.gz')
-                label_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + label_suffix + '.nii.gz')
-                if not os.path.exists(img_path) or not os.path.exists(label_path):
-                    print(f'Error while importing {dir_name}\n {img_path} and {label_path} may not exist')
-                else:
-                    # Applying preprocessing steps
-                    image, mask, discs_labels = apply_preprocessing(img_path, label_path)
-                    imgs.append(image)
-                    masks.append(mask)
-                    discs_labels_list.append(discs_labels)
-                    subjects.append(dir_name)
-                    shapes.append(get_midNifti(img_path).shape)
+    for label_path in label_paths:
+        img_path = get_img_path_from_label_path(label_path)
+        if not os.path.exists(img_path) or not os.path.exists(label_path):
+            print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
+        else:
+            # Applying preprocessing steps
+            image, mask, discs_labels = apply_preprocessing(img_path, label_path)
+            imgs.append(image)
+            masks.append(mask)
+            discs_labels_list.append(discs_labels)
+            subject, sessionID, filename, contrast = fetch_subject_and_session(img_path)
+            subjects.append(subject)
+            shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{dir_list[begin:end].index(dir_name)+1}/{len(dir_list[begin:end])}'
+        bar.suffix  = f'{label_paths.index(path)+1}/{len(label_paths)}'
         bar.next()
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
 
-def load_img_only(datapath, contrasts, img_suffix=''):
+def load_img_only(config_data, split='TESTING'):
     '''
-    This function output 2 lists corresponding to:
+    This function output 3 lists corresponding to:
         - the middle slice extracted from the niftii images
         - the subjects names
+        - the images shapes
     
-    :param datapath: Path to dataset
-    :param contrasts: Contrasts of the images loaded
-    :param img_suffix: The image suffix: Example='_acq-sagittal'
+    :param config_data: Config dict where every image used for TRAINING, VALIDATION and/or TESTING has its path specified
+    :param split: Split of the data needed ('TRAINING', 'VALIDATION', 'TESTING')
     '''
-    # Loading dataset
-    dir_list = os.listdir(datapath)
-    dir_list.sort() # TODO: check if sorting the data is relevant --> mixing data could be more relevant 
     
-    nb_dir = len(dir_list)
-    begin = 0
-    end = int(np.round(nb_dir)) # The full dataset is loaded
+    # Get file paths based on split
+    paths = config_data[split]
     
     # Init progression bar
-    bar = Bar(f'Load full data with pre-processing', max=len(dir_list[begin:end]))
+    bar = Bar(f'Load {split} data with pre-processing', max=len(img_paths))
     
     imgs = []
     subjects = []
     shapes = []
-    for dir_name in dir_list[begin:end]:
-        if dir_name.startswith('sub'):
-            for contrast in contrasts:
-                img_path = os.path.join(datapath,dir_name,dir_name + img_suffix + '_' + contrast + '.nii.gz')
-                if not os.path.exists(img_path):
-                    print(f'Error while importing {dir_name}\n {img_path} may not exist')
-                else:
-                    # Applying preprocessing steps
-                    image = apply_preprocessing(img_path)
-                    imgs.append(image)
-                    subjects.append(dir_name)
-                    shapes.append(get_midNifti(img_path).shape)
+    for path in paths:
+        # Check TYPE to get img_path
+        if config_data['TYPE'] == 'IMAGE':
+            img_path = path
+        elif config_data['TYPE'] == 'LABEL':
+            img_path = get_img_path_from_label_path(path)
+        else:
+            raise ValueError('TYPE error: The TYPE can only be "IMAGE" or "LABEL"')
+
+        # Check if img_path exists
+        if not os.path.exists(img_path):
+            print(f'Error while loading subject\n {img_path} does not exist')
+        else:
+            # Applying preprocessing steps
+            image = apply_preprocessing(img_path)
+            imgs.append(image)
+            subject, sessionID, filename, contrast = fetch_subject_and_session(img_path)
+            subjects.append(subject)
+            shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{dir_list[begin:end].index(dir_name)+1}/{len(dir_list[begin:end])}'
+        bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
     return imgs, subjects, shapes

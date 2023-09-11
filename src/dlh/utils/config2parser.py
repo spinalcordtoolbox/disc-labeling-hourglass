@@ -26,8 +26,13 @@ def parser2config(args, path_out):
     # Serializing json
     json_object = json.dumps(vars(args), indent=4)
     
-    # Writing to sample.json
-    with open(path_out, "w") as outfile:
+    # Inform user
+    if os.path.exists(path_out):
+        print(f"The config file {path_out} with all the training parameters was updated")
+    else:
         print(f"The config file {path_out} with all the training parameters was created")
+    
+    # Write json file
+    with open(path_out, "w") as outfile:
         outfile.write(json_object)
     
