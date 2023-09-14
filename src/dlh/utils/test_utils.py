@@ -208,7 +208,7 @@ def load_niftii_split(config_data, split='TRAINING'):
             imgs.append(image)
             masks.append(mask)
             discs_labels_list.append(discs_labels)
-            subject, sessionID, filename, contrast = fetch_subject_and_session(img_path)
+            subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
             subjects.append(subject)
             shapes.append(get_midNifti(img_path).shape)
         
@@ -254,7 +254,7 @@ def load_img_only(config_data, split='TESTING'):
             # Applying preprocessing steps
             image = apply_preprocessing(img_path)
             imgs.append(image)
-            subject, sessionID, filename, contrast = fetch_subject_and_session(img_path)
+            subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
             subjects.append(subject)
             shapes.append(get_midNifti(img_path).shape)
         
