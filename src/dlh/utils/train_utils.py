@@ -90,17 +90,18 @@ def extract_all(list_coord_label, shape_im):
     """
     shape_tmp = (1, shape_im[0], shape_im[1])
     final = np.zeros(shape_tmp[1:])
-    for x in list_coord_label:
-        train_lbs_tmp_mask = label2MaskMap_GT(x, shape_tmp)
+    for coord in list_coord_label:
+        train_lbs_tmp_mask = label2MaskMap_GT(coord, shape_tmp)
         np.maximum(final, train_lbs_tmp_mask, out=final)
     return np.expand_dims(final, axis=0)
 
 
 class image_Dataset(Dataset):
-    def __init__(self, images, targets=None, subjects_names=None, num_channel=None, use_flip=True, load_mode='test'):  # initial logic happens like transform
+    def __init__(self, images, targets=None, discs_labels=None, subjects_names=None, num_channel=None, use_flip=True, load_mode='test'):  # initial logic happens like transform
         
         self.images = images
         self.targets = targets
+        self.discs_labels = discs_labels
         self.subjects_names = subjects_names
         self.num_channel = num_channel
         self.num_vis_joints = []
@@ -110,23 +111,22 @@ class image_Dataset(Dataset):
     def __len__(self):  # return count of sample we have
         return len(self.images)
     
-    def get_posedata(self, msk, num_ch=11):
-        msk = msk[:, :, 0]
-
+    def get_posedata(self, msk, discs_list, num_ch=11):
         ys = msk.shape
         ys_ch = np.zeros([ys[0], ys[1], num_ch])
-        msk_uint = np.uint8(np.where(msk >0.2, 1, 0))
-        
+
+        msk_uint = np.uint8(np.where(msk>0.2, 1, 0))
         num_labels, labels_im = cv2.connectedComponents(msk_uint)
         self.num_vis_joints.append(num_labels-1) # the <0> label is the background
-        i = 1
-        while i <= num_ch and i <= num_labels:
-            y_i = msk * np.where(labels_im == i, 1, 0)
-            ys_ch[:,:, i-1] = y_i
-            i += 1
+
+        for i in range(num_labels-1):
+            num_label = i + 1  # label index cv2
+            num_disc = discs_list[i]
+            y_i = msk * np.where(labels_im == num_label, 1, 0)
+            ys_ch[:,:, num_disc-1] = y_i
         
         vis = np.zeros((num_ch, 1))
-        vis[:num_labels-1] = 1
+        vis[discs_list[0]-1:discs_list[-1]] = 1
         return ys_ch, vis
 
     def transform(self, image, mask=None):
@@ -163,10 +163,12 @@ class image_Dataset(Dataset):
         
         image = self.images[index]
         image = np.expand_dims(image, axis= -1)
-        if not self.targets is None: 
+        if not self.targets is None:
+            if index == 0:
+                print(1)
             mask = self.targets[index]
-            mask = np.expand_dims(mask, axis= -1)
-            mask, vis  = self.get_posedata(mask, num_ch=self.num_channel)
+            discs_labels = np.array(self.discs_labels[index])
+            mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel)
             t_image, t_mask = self.transform(image, mask)
             vis = torch.FloatTensor(vis)
         else:
@@ -398,7 +400,7 @@ def apply_preprocessing(img_path, target_path=''):
         discs_labels = mask2label(target_path)
         discs_labels = [coord for coord in discs_labels if coord[-1] < 25] # Remove labels superior to 25, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
         mask = extract_all(discs_labels, shape_im=image_in.shape)
-        mask = normalize(mask[0, :, :])
+        mask = normalize(mask[0,:,:])
         mask = cv2.resize(mask, (256, 256))
         mask = mask.astype(np.float32)
         return image, mask, discs_labels
