@@ -70,6 +70,7 @@ def main(args):
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
                                        targets=masks_train,
+                                       discs_labels=discs_labels_train,
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
                                        use_flip = True,
@@ -78,6 +79,7 @@ def main(args):
 
     full_dataset_val = image_Dataset(images=imgs_val, 
                                     targets=masks_val,
+                                    discs_labels=discs_labels_val,
                                     subjects_names=subjects_val,
                                     num_channel=args.ndiscs,
                                     use_flip = False,
@@ -94,10 +96,10 @@ def main(args):
                                 shuffle=False,
                                 num_workers=0
                                 )
-    
+
     # idx is the index of joints used to compute accuracy (we detect N discs starting from C1 to args.ndiscs) 
     idx = [(i+1) for i in range(args.ndiscs)]
-
+    
     # create model
     print("==> creating model stacked hourglass, stacks={}, blocks={}".format(args.stacks, args.blocks))
     if args.att:
@@ -437,8 +439,8 @@ if __name__ == '__main__':
     parser.add_argument('--config-train', type=str, default='',
                         help='Config JSON file where every training parameter is stored. Example: ~/<your_path>/config_train.json')
     # Parser to configure training (Method 2)
-    parser.add_argument('--ndiscs', type=int, default=11,
-                        help='Number of discs to detect (default=11)')
+    parser.add_argument('--ndiscs', type=int, default=25,
+                        help='Number of discs to detect (default=25)')
     parser.add_argument('--wandb', default=True,
                         help='Train with wandb (default=True)')
     parser.add_argument('--resume', default=False, type=bool,
@@ -496,7 +498,7 @@ if __name__ == '__main__':
         args.skeleton_folder = os.path.abspath(args.skeleton_folder)
 
         # Add training contrast
-        args.train_contrast = json.load(args.config_data)['CONTRASTS']
+        args.train_contrast = json.load(open(args.config_data, "r"))['CONTRASTS']
 
         # Create file name
         json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
@@ -515,7 +517,7 @@ if __name__ == '__main__':
         args = config2parser(parser.parse_args().config_train)
 
         # Update training contrast
-        args.train_contrast = json.load(parser.parse_args().config_data)['CONTRASTS']
+        args.train_contrast = json.load(open(parser.parse_args().config_data, 'r'))['CONTRASTS']
 
         # Create file name
         json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
