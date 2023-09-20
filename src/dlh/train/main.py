@@ -30,10 +30,6 @@ from dlh.utils.test_utils import CONTRAST, load_niftii_split
 from dlh.utils.skeleton import create_skeleton
 from dlh.utils.config2parser import parser2config, config2parser
 
-# select proper device to run
-device = torch.device("cuda:0") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
-cudnn.benchmark = True  
-
 
 def main(args):
     '''
@@ -43,6 +39,10 @@ def main(args):
     weight_folder = args.weight_folder
     vis_folder = args.visual_folder
     wandb_mode = args.wandb
+
+    # select proper device to run
+    device = torch.device("cuda:0") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    cudnn.benchmark = True  
 
     # Read json file and create a dictionary
     with open(args.config_data, "r") as file:
@@ -145,9 +145,9 @@ def main(args):
             model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
 
         if args.attshow:
-            loss, acc = show_attention(MRI_val_loader, model)
+            loss, acc = show_attention(MRI_val_loader, model, device)
         else:
-            loss, acc = validate(MRI_val_loader, model, criterion, epoch, idx, vis_folder)
+            loss, acc = validate(MRI_val_loader, model, criterion, epoch, idx, vis_folder, device)
         return
     
     if wandb_mode:
@@ -174,7 +174,7 @@ def main(args):
             MRI_val_loader.dataset.sigma *=  args.sigma_decay
 
         # train for one epoch
-        epoch_loss, epoch_acc = train(MRI_train_loader, model, criterion, optimizer, epoch, idx, wandb_mode)
+        epoch_loss, epoch_acc = train(MRI_train_loader, model, criterion, optimizer, epoch, idx, wandb_mode, device)
 
         if wandb_mode:
             wandb.log({"training_loss/epoch": epoch_loss})
@@ -186,7 +186,7 @@ def main(args):
             wandb.log({"training_lr/epoch": lr})
         
         # evaluate on validation set
-        valid_loss, valid_acc, valid_dice = validate(MRI_val_loader, model, criterion, epoch, idx, vis_folder, wandb_mode)
+        valid_loss, valid_acc, valid_dice = validate(MRI_val_loader, model, criterion, epoch, idx, vis_folder, wandb_mode, device)
 
         if wandb_mode:
             # 🐝 log valid_dice over the epoch to wandb
@@ -222,7 +222,7 @@ def main(args):
     
                 
 
-def train(train_loader, model, criterion, optimizer, ep, idx, wandb_mode):
+def train(train_loader, model, criterion, optimizer, ep, idx, wandb_mode, device):
     '''
     Train hourglass for one epoch
     
@@ -254,19 +254,26 @@ def train(train_loader, model, criterion, optimizer, ep, idx, wandb_mode):
         data_time.update(time.time() - end)
         inputs, targets = inputs.to(device), targets.to(device, non_blocking=True)
         vis = vis.to(device, non_blocking=True)
-        
         # compute output and calculate loss
         output = model(inputs) 
         if type(output) == list:  # multiple output
             loss = 0
             for o in output:
-                loss += criterion(o, targets, vis)
+                batch_size = o.size(0)
+                num_joints = o.size(1)
+                out = o.view((batch_size, num_joints, -1))
+                vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
+                loss += criterion(o, targets, vis, vis_out)
             output = output[-1]
         else:  # single output
-            loss = criterion(output, targets, vis)
+            batch_size = output.size(0)
+            num_joints = output.size(1)
+            out = output.view((batch_size, num_joints, -1))
+            vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
+            loss = criterion(output, targets, vis, vis_out)
         
         # Extract individual loss for each subject    
-        sub_loss = loss_per_subject(pred=output, target=targets, vis=vis, criterion=criterion)
+        sub_loss = loss_per_subject(pred=output, target=targets, vis=vis, vis_out=vis_out, criterion=criterion)
         
         if type(subjects) == list:
             for i, subject in enumerate(subjects):
@@ -313,7 +320,7 @@ def train(train_loader, model, criterion, optimizer, ep, idx, wandb_mode):
     return losses.avg, acces.avg
 
 
-def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode):
+def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode, device):
     '''
     Compute validation dataset with hourglass for one epoch
     
@@ -350,10 +357,18 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode):
             if type(output) == list:  # multiple output
                 loss = 0
                 for o in output:
-                    loss += criterion(o, target, vis)
+                    batch_size = o.size(0)
+                    num_joints = o.size(1)
+                    out = o.view((batch_size, num_joints, -1))
+                    vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
+                    loss += criterion(o, target, vis, vis_out)
                 output = output[-1]
             else:  # single output
-                loss = criterion(output, target, vis)
+                batch_size = output.size(0)
+                num_joints = output.size(1)
+                out = output.view((batch_size, num_joints, -1))
+                vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
+                loss = criterion(output, target, vis, vis_out)
             acc = accuracy(output.cpu(), target.cpu(), idx)
             loss_dice = dice_loss(output, target)
             
@@ -397,7 +412,7 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode):
 
 
 
-def show_attention(val_loader, model):
+def show_attention(val_loader, model, device):
     ## define the attention layer output
     save_output = SaveOutput()
     for layer in model.modules():
