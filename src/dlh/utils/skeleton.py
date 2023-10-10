@@ -38,6 +38,7 @@ def create_skeleton(args):
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
                                        targets=masks_train,
+                                       discs_labels=discs_labels_train,
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
                                        use_flip = False,
