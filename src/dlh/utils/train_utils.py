@@ -115,18 +115,22 @@ class image_Dataset(Dataset):
         ys = msk.shape
         ys_ch = np.zeros([ys[0], ys[1], num_ch])
 
-        msk_uint = np.uint8(np.where(msk>0.2, 1, 0))
-        num_labels, labels_im = cv2.connectedComponents(msk_uint)
-        self.num_vis_joints.append(num_labels-1) # the <0> label is the background
+        if num_ch != 1:
+            msk_uint = np.uint8(np.where(msk>0.2, 1, 0))
+            num_labels, labels_im = cv2.connectedComponents(msk_uint)
+            self.num_vis_joints.append(num_labels-1) # the <0> label is the background
 
-        for i in range(num_labels-1):
-            num_label = i + 1  # label index cv2
-            num_disc = discs_list[i]
-            y_i = msk * np.where(labels_im == num_label, 1, 0)
-            ys_ch[:,:, num_disc-1] = y_i
+            for i, num_disc in enumerate(discs_list):
+                if num_disc <= num_ch:
+                    num_label = i + 1  # label index cv2
+                    y_i = msk * np.where(labels_im == num_label, 1, 0)
+                    ys_ch[:,:, num_disc-1] = y_i
         
-        vis = np.zeros((num_ch, 1))
-        vis[discs_list[0]-1:discs_list[-1]] = 1
+            vis = np.zeros((num_ch, 1))
+            vis[discs_list[0]-1:discs_list[-1]] = 1
+        else:
+            ys_ch[:,:, 0] = msk
+            vis = np.ones((num_ch, 1))
         return ys_ch, vis
 
     def transform(self, image, mask=None):
@@ -164,8 +168,6 @@ class image_Dataset(Dataset):
         image = self.images[index]
         image = np.expand_dims(image, axis= -1)
         if not self.targets is None:
-            if index == 0:
-                print(1)
             mask = self.targets[index]
             discs_labels = np.array(self.discs_labels[index])
             mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel)
