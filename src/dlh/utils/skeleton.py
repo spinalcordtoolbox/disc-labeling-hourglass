@@ -82,19 +82,15 @@ def create_skeleton(args):
     np.save(os.path.join(out_dir, f'{contrast_str}_Skelet_ndiscs_{ndiscs}.npy'), Skelet)
     
 if __name__=='__main__':
-    parser = argparse.ArgumentParser(description='Training hourglass network')
+    parser = argparse.ArgumentParser(description='Create hourglass skeleton')
     
     ## Parameters
-    parser.add_argument('--datapath', type=str, required=True,
-                        help='Path to data folder generated using data_management/gather_data.py Example: ~/<your_dataset>/vertebral_data (Required)')
-    parser.add_argument('-c', '--contrasts', type=str, metavar='N', required=True,
-                        help='MRI contrast: choices=["t1", "t2", "t1_t2"] (Required)')
+    parser.add_argument('--config-data', type=str,
+                        help='Config JSON file where every label used for TRAINING, VALIDATION and TESTING has its path specified ~/<your_path>/config_data.json (Required)')
     
-    parser.add_argument('--ndiscs', type=int, default=11,
-                        help='Number of discs to detect (default=11)')
+    parser.add_argument('--ndiscs', type=int, default=25,
+                        help='Number of discs to detect (default=25)')
     parser.add_argument('--skeleton-folder', type=str, default=os.path.abspath('src/dlh/skeletons'),
                         help='Folder where skeletons are stored. Will be created if does not exist. (default="src/dlh/skeletons")')
-    parser.add_argument('--split-ratio', default=(0.8, 0.1, 0.1),
-                        help='Split ratio used for (train, val, test) (default=(0.8, 0.1, 0.1))')
     
     create_skeleton(parser.parse_args())  # Create skeleton file to improve hourglass accuracy during testing
