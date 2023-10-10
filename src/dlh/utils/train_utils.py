@@ -369,7 +369,7 @@ def save_attention(inputs, outputs, targets, att, target_th=0.5):
     res = np.transpose(trgts.numpy(), (1,2,0))
     cv2.imwrite(txt, res)
 
-def loss_per_subject(pred, target, vis, criterion):
+def loss_per_subject(pred, target, vis, vis_out, criterion):
     '''
     Return a list of loss corresponding to each image in the batch
     
@@ -380,10 +380,10 @@ def loss_per_subject(pred, target, vis, criterion):
     if type(pred) == list:  # multiple output
         for p in pred:
             for idx in range(p.shape[0]):
-                losses.append(criterion(p[idx], target[idx], vis[idx]).item())
+                losses.append(criterion(p[idx], target[idx], vis[idx], vis_out[idx]).item())
     else:  # single output
         for idx in range(pred.shape[0]):
-            losses.append(criterion(torch.unsqueeze(pred[idx], 0), torch.unsqueeze(target[idx], 0), torch.unsqueeze(vis[idx], 0)).item())
+            losses.append(criterion(torch.unsqueeze(pred[idx], 0), torch.unsqueeze(target[idx], 0), torch.unsqueeze(vis[idx], 0), torch.unsqueeze(vis_out[idx], 0)).item())
     return losses
 
 def apply_preprocessing(img_path, target_path=''):
