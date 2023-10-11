@@ -10,8 +10,8 @@ from dlh.models.atthourglass import atthg
 from dlh.utils.train_utils import image_Dataset
 from dlh.utils.image import Image, zeros_like
 from dlh.utils.config2parser import config2parser
-from dlh.utils.test_utils import CONTRAST, extract_skeleton, load_img_only, fetch_img_paths, get_mask_path_from_img_path
-from dlh.data_management.utils import fetch_subject_and_session
+from dlh.utils.test_utils import CONTRAST, extract_skeleton, load_img_only
+from dlh.data_management.utils import fetch_subject_and_session, fetch_img_paths, get_mask_path_from_img_path
 
 #---------------------------Test Hourglass Network----------------------------
 def run_inference(args):

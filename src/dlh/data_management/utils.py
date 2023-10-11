@@ -77,3 +77,49 @@ def fetch_contrast(filename_path):
     :param filename_path: image file path or file name. (e.g sub-001_ses-01_T1w.nii.gz)
     '''
     return filename_path.rstrip(''.join(Path(filename_path).suffixes)).split('_')[-1]
+
+##
+def fetch_img_paths(config_data, split='TESTING'):
+    # Get file paths based on split
+    paths = config_data[split]
+    img_paths = []
+    for path in paths:
+        # Check TYPE to get img_path
+        if config_data['TYPE'] == 'IMAGE':
+            img_path = path
+        elif config_data['TYPE'] == 'LABEL':
+            img_path = get_img_path_from_label_path(path)
+        else:
+            raise ValueError('TYPE error: The TYPE can only be "IMAGE" or "LABEL"')
+        img_paths.append(img_path)
+    return img_paths
+
+##
+def get_mask_path_from_img_path(img_path, suffix='_seg', derivatives_path='/derivatives/labels'):
+    """
+    This function returns the mask path from an image path. Images need to be stored in a BIDS compliant dataset.
+
+    :param img_path: String path to niftii image
+    :param suffix: Mask suffix
+    :param derivatives_path: Relative path to derivatives folder where labels are stored (e.i. '/derivatives/labels')
+    Based on https://github.com/spinalcordtoolbox/disc-labeling-benchmark
+    """
+    # Extract information from path
+    subjectID, sessionID, filename, contrast, echoID = fetch_subject_and_session(img_path)
+
+    # Extract file extension
+    path_obj = Path(img_path)
+    ext = ''.join(path_obj.suffixes)
+
+    # Create mask name
+    mask_name = path_obj.name.split('.')[0] + suffix + ext
+
+    # Split path using "/" (TODO: check if it works for windows users)
+    path_list = img_path.split('/')
+
+    # Extract subject folder index
+    sub_folder_idx = path_list.index(subjectID)
+
+    # Reconstruct mask_path
+    mask_path = os.path.join('/'.join(path_list[:sub_folder_idx]), derivatives_path, path_list[sub_folder_idx:-1], mask_name)
+    return mask_path
