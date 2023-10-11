@@ -23,7 +23,11 @@ from dlh.data_management.utils import get_img_path_from_label_path, fetch_subjec
 CONTRAST = {'t1': ['T1w'],
             't2': ['T2w'],
             't2s':['T2star'],
-            't1_t2': ['T1w', 'T2w']}
+            't1_t2': ['T1w', 'T2w'],
+            'psir': ['PSIR'],
+            'stir': ['STIR'],
+            'psir_stir': ['PSIR', 'STIR'],
+            }
 
 ## Functions  
 def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save=False, target_th=0.5):
