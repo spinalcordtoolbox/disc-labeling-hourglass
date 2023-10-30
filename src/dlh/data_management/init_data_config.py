@@ -15,7 +15,7 @@ def init_data_config(args):
     """
     Create a JSON configuration file from a TXT file where images paths are specified
     """
-    if (args.split_validation + args.split_test) >= 1:
+    if (args.split_validation + args.split_test) > 1:
         raise ValueError("The sum of the ratio between testing and validation cannot exceed 1")
 
     # Get input paths, could be label files or image files,
@@ -82,5 +82,10 @@ if __name__ == '__main__':
                         help='Split ratio for validation. Default=0.1')
     parser.add_argument('--split-test', type=float, default=0.1,
                         help='Split ratio for testing. Default=0.1')
+    
+    args = parser.parse_args()
+    
+    if args.split_test > 0.9:
+        args.split_validation = 1 - args.split_test
     
     init_data_config(parser.parse_args())
