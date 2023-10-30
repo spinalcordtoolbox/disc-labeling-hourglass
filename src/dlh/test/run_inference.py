@@ -11,7 +11,7 @@ from dlh.utils.train_utils import image_Dataset
 from dlh.utils.image import Image, zeros_like
 from dlh.utils.config2parser import config2parser
 from dlh.utils.test_utils import CONTRAST, extract_skeleton, load_img_only
-from dlh.data_management.utils import fetch_subject_and_session, fetch_img_paths, get_mask_path_from_img_path
+from dlh.data_management.utils import fetch_subject_and_session, fetch_img_paths, get_mask_path_from_img_path, create_json
 
 #---------------------------Test Hourglass Network----------------------------
 def run_inference(args):
@@ -99,7 +99,9 @@ def run_inference(args):
                 pred = np.array([[(round(coord[0])/pred_shape[0])*original_shape[0], (round(coord[1])/pred_shape[1])*original_shape[1], int(disc_num)] for disc_num, coord in pred_discs_coords[0].items()]).astype(int)
                 
                 # Create empty mask
-                img = Image(img_path).change_orientation('RSP')
+                img = Image(img_path)
+                original_orientation = img.orientation
+                img = img.change_orientation('RSP')
                 out_mask = zeros_like(img)
 
                 # Get transpose
@@ -111,10 +113,17 @@ def run_inference(args):
                 # Add discs coords to mask
                 out_mask.data[middle_slice, pred_t[0], pred_t[1]] = pred_t[2]
 
-                # Save prediction mask
-                out_path = get_mask_path_from_img_path(img_path, suffix='_label-discs', derivatives_path='/derivatives/labels')
-                out_mask.save(path=out_path, dtype='float32')
-            
+                # Create outpath mask
+                out_path = get_mask_path_from_img_path(img_path, suffix='_label-discs', derivatives_path='derivatives/labels')
+                
+                # Check if output folder exists
+                if not os.path.exists(os.path.dirname(out_path)):
+                    os.makedirs(os.path.dirname(out_path))
+                
+                # Save created mask
+                out_mask.change_orientation(original_orientation).save(path=out_path, dtype='float32')
+                create_json(out_path)
+
             except ValueError:
                 print(f'Failed detection with filename {filename}')
 
@@ -127,9 +136,9 @@ if __name__ == '__main__':
 
     ## Parameters
     # All mandatory parameters                         
-    parser.add_argument('--config-data', type=str, metavar='<folder>', required=True,
+    parser.add_argument('--config-data', type=str, metavar='<JSON-path>', required=True,
                         help='Config JSON file where every label/image used for TESTING has its path specified ~/<your_path>/config_data.json (Required)')                               
-    parser.add_argument('--config-hg', type=str, required=True,
+    parser.add_argument('--config-hg', type=str, metavar='<JSON-path>', required=True,
                         help='Config file where hourglass training parameters are stored Example: Example: ~/<your_path>/config.json (Required)')  # Hourglass config file
     parser.add_argument('--trained-contrast-only', type=bool, default=False,
                         help='If True this script will generate an error when the input contrast is different from those used during the training (default=False)')
