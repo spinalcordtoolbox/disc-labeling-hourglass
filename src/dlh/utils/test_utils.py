@@ -209,12 +209,13 @@ def load_niftii_split(config_data, split='TRAINING'):
         else:
             # Applying preprocessing steps
             image, mask, discs_labels = apply_preprocessing(img_path, label_path)
-            imgs.append(image)
-            masks.append(mask)
-            discs_labels_list.append(discs_labels)
-            subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
-            subjects.append(subject)
-            shapes.append(get_midNifti(img_path).shape)
+            if discs_labels: # Check if file not empty
+                imgs.append(image)
+                masks.append(mask)
+                discs_labels_list.append(discs_labels)
+                subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
+                subjects.append(subject)
+                shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
         bar.suffix  = f'{label_paths.index(label_path)+1}/{len(label_paths)}'
