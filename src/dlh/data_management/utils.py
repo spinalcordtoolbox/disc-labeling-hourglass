@@ -95,17 +95,17 @@ def fetch_img_paths(config_data, split='TESTING'):
     return img_paths
 
 ##
-def get_mask_path_from_img_path(img_path, suffix='_seg', derivatives_path='/derivatives/labels'):
+def get_mask_path_from_img_path(img_path, suffix='_seg', derivatives_path='derivatives/labels'):
     """
     This function returns the mask path from an image path. Images need to be stored in a BIDS compliant dataset.
 
     :param img_path: String path to niftii image
     :param suffix: Mask suffix
-    :param derivatives_path: Relative path to derivatives folder where labels are stored (e.i. '/derivatives/labels')
+    :param derivatives_path: Relative path to derivatives folder where labels are stored (e.i. 'derivatives/labels')
     Based on https://github.com/spinalcordtoolbox/disc-labeling-benchmark
     """
     # Extract information from path
-    subjectID, sessionID, filename, contrast, echoID = fetch_subject_and_session(img_path)
+    subjectID, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
 
     # Extract file extension
     path_obj = Path(img_path)
