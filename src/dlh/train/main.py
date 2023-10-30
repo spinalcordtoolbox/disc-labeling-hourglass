@@ -516,7 +516,7 @@ if __name__ == '__main__':
         args.train_contrast = json.load(open(args.config_data, "r"))['CONTRASTS']
 
         # Create file name
-        json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
+        json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
         
         # Remove config-data and config-train from parser Namespace object
         saved_args = copy.copy(args) # To do a REAL copy of the object
@@ -535,7 +535,7 @@ if __name__ == '__main__':
         args.train_contrast = json.load(open(parser.parse_args().config_data, 'r'))['CONTRASTS']
 
         # Create file name
-        json_name = f'config_hg_ndiscs_{args.ndiscs}.json'
+        json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
 
         # Create a new json updated in the weight folder
         saved_args = copy.copy(args)
