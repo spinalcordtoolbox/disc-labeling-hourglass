@@ -281,9 +281,9 @@ def train(train_loader, model, criterion, optimizer, ep, idx, wandb_mode, device
         else:
             subjects_loss_dict[subjects] = sub_loss # add subjects name and individual loss to dict
         
-        if wandb_mode:
+        #if wandb_mode:
             # 🐝 log train_loss for each step to wandb
-            wandb.log({"training_loss/step": loss.item()})
+            # wandb.log({"training_loss/step": loss.item()})
 
         # measure accuracy and record loss
         acc = accuracy(output, targets, idx)
@@ -313,9 +313,9 @@ def train(train_loader, model, criterion, optimizer, ep, idx, wandb_mode, device
         bar.next()
     bar.finish()
     
-    if wandb_mode:
+    #if wandb_mode:
         # 🐝 log bar plot with individual loss in wandb
-        wandb.log(subjects_loss_dict)
+        #wandb.log(subjects_loss_dict)
     
     return losses.avg, acces.avg
 
@@ -372,9 +372,9 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode, devi
             acc = accuracy(output.cpu(), target.cpu(), idx)
             loss_dice = dice_loss(output, target)
             
-            if wandb_mode:
+            #if wandb_mode:
                 # 🐝 log validation_loss for each step to wandb
-                wandb.log({"validation_dice/step": loss_dice})
+                #wandb.log({"validation_dice/step": loss_dice})
 
             if i == 0:
                 txt, res, targets, preds = save_epoch_res_as_image2(input, output, target, out_folder, epoch_num=ep, target_th=0.5, wandb_mode=wandb_mode)
