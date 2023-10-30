@@ -123,3 +123,23 @@ def get_mask_path_from_img_path(img_path, suffix='_seg', derivatives_path='deriv
     # Reconstruct mask_path
     mask_path = os.path.join('/'.join(path_list[:sub_folder_idx]), derivatives_path, "/".join(path_list[sub_folder_idx:-1]), mask_name)
     return mask_path
+
+##
+def create_json(fname_nifti):
+    """
+    Create JSON sidecar with meta information
+    :param fname_nifti: str: File path of the nifti image to associate with the JSON sidecar
+    Based on https://github.com/spinalcordtoolbox/manual-correction
+    """
+    fname_json = fname_nifti.replace('.gz', '').replace('.nii', '.json')
+    
+    # Init new json dict
+    json_dict = {'GeneratedBy': []}
+    
+    # Add new author with time and date
+    json_dict['GeneratedBy'].append({'Author': 'Discs labeling Hourglass', 'Date': time.strftime('%Y-%m-%d %H:%M:%S')})
+    with open(fname_json, 'w') as outfile: # w to overwrite the file
+        json.dump(json_dict, outfile, indent=4)
+        # Add last newline
+        outfile.write("\n")
+    print("JSON sidecar was created: {}".format(fname_json))
