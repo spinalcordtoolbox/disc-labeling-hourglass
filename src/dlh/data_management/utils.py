@@ -121,5 +121,5 @@ def get_mask_path_from_img_path(img_path, suffix='_seg', derivatives_path='deriv
     sub_folder_idx = path_list.index(subjectID)
 
     # Reconstruct mask_path
-    mask_path = os.path.join('/'.join(path_list[:sub_folder_idx]), derivatives_path, path_list[sub_folder_idx:-1], mask_name)
+    mask_path = os.path.join('/'.join(path_list[:sub_folder_idx]), derivatives_path, "/".join(path_list[sub_folder_idx:-1]), mask_name)
     return mask_path
