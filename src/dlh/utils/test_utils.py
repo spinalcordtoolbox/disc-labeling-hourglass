@@ -27,6 +27,7 @@ CONTRAST = {'t1': ['T1w'],
             'psir': ['PSIR'],
             'stir': ['STIR'],
             'psir_stir': ['PSIR', 'STIR'],
+            't1_t2_psir_stir': ['T1w', 'T2w', 'PSIR', 'STIR']
             }
 
 ## Functions  
@@ -52,12 +53,14 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
             ych = np.where(ych>0, 1.0, 0)
             ych = np.uint8(ych)
             num_labels, labels_im, states, centers = cv2.connectedComponentsWithStats(ych)
-            count_list.append(num_labels-1) # Number of "object" in the image --> "-1" because we remove the backgroung
-            center_list[str(idy)] = [t[::-1] for t in centers[1:]]
-            Final[idx, idy] = ych_fin
-            
-        if np.prod(count_list)>25000:
+            if (num_labels-1) * np.prod(count_list) < 1000 and (num_labels-1) < 4: # Remove masks with too many predictions
+                count_list.append(num_labels-1) # Number of "object" in the image --> "-1" because we remove the backgroung
+                center_list[str(idy)] = [t[::-1] for t in centers[1:]]
+                Final[idx, idy] = ych_fin
+        
+        if not count_list:
             raise ValueError("Trop de possibilités")
+        
         ups = []
         for c in count_list:
             ups.append(range(c))
@@ -66,8 +69,8 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
         best_skeleton = []
         for comb in combs:
             cnd_skeleton = []
-            for joint_idx, cnd_joint_idx in enumerate(comb):
-                cnd_center = center_list[str(joint_idx)][cnd_joint_idx]
+            for joint_idx, cnd_joint_idx in zip(center_list.keys(), comb):
+                cnd_center = center_list[joint_idx][cnd_joint_idx]
                 cnd_skeleton.append(cnd_center)
             loss = check_skeleton(cnd_skeleton, norm_mean_skeleton) # Compare each disc combination with norm_mean_skeleton
             if best_loss > loss:
@@ -94,9 +97,11 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
         Final = Final * Final2
         
         out_dict = {}
+        z_coord = 0
         for i, disc_idx in enumerate(discs_idx):
-            out_dict[str(int(disc_idx)+1)] = best_skeleton[i]          
-        
+            if best_skeleton[i][0] > z_coord: # Track z coordinate to ensure increasing disc value
+                out_dict[str(int(disc_idx)+1)] = best_skeleton[i]          
+                z_coord = best_skeleton[i][0]
         skeleton_images.append(hits)
         out_list.append(out_dict)
         
