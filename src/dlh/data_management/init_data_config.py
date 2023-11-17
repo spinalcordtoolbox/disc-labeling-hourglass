@@ -88,4 +88,4 @@ if __name__ == '__main__':
     if args.split_test > 0.9:
         args.split_validation = 1 - args.split_test
     
-    init_data_config(parser.parse_args())
+    init_data_config(args)
