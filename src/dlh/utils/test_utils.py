@@ -197,19 +197,21 @@ def load_niftii_split(config_data, split='TRAINING'):
         raise ValueError('TYPE LABEL not detected: PLZ specify paths to labels for training in config file')
     
     # Get file paths based on split
-    label_paths = config_data[split]
+    paths = config_data[split]
     
     # Init progression bar
-    bar = Bar(f'Load {split} data with pre-processing', max=len(label_paths))
+    bar = Bar(f'Load {split} data with pre-processing', max=len(paths))
     
     imgs = []
     masks = []
     discs_labels_list = []
     subjects = []
     shapes = []
-    for label_path in label_paths:
+    for path in paths:
         if config_data['DATASETS_PATH']:
-            label_path = os.path.join(config_data['DATASETS_PATH'], label_path)
+            label_path = os.path.join(config_data['DATASETS_PATH'], path)
+        else:
+            label_path = path
         img_path = get_img_path_from_label_path(label_path)
         if not os.path.exists(img_path) or not os.path.exists(label_path):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
@@ -225,7 +227,7 @@ def load_niftii_split(config_data, split='TRAINING'):
                 shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{label_paths.index(label_path)+1}/{len(label_paths)}'
+        bar.suffix  = f'{label_paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
@@ -252,12 +254,14 @@ def load_img_only(config_data, split='TESTING'):
     shapes = []
     for path in paths:
         if config_data['DATASETS_PATH']:
-            path = os.path.join(config_data['DATASETS_PATH'], path)
+            file_path = os.path.join(config_data['DATASETS_PATH'], path)
+        else:
+            file_path = path
         # Check TYPE to get img_path
         if config_data['TYPE'] == 'IMAGE':
-            img_path = path
+            img_path = file_path
         elif config_data['TYPE'] == 'LABEL':
-            img_path = get_img_path_from_label_path(path)
+            img_path = get_img_path_from_label_path(file_path)
         else:
             raise ValueError('TYPE error: The TYPE can only be "IMAGE" or "LABEL"')
 
