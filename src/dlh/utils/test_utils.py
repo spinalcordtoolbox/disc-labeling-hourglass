@@ -208,6 +208,8 @@ def load_niftii_split(config_data, split='TRAINING'):
     subjects = []
     shapes = []
     for label_path in label_paths:
+        if config_data['DATASETS_PATH']:
+            label_path = os.path.join(config_data['DATASETS_PATH'], label_path)
         img_path = get_img_path_from_label_path(label_path)
         if not os.path.exists(img_path) or not os.path.exists(label_path):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
@@ -249,6 +251,8 @@ def load_img_only(config_data, split='TESTING'):
     subjects = []
     shapes = []
     for path in paths:
+        if config_data['DATASETS_PATH']:
+            path = os.path.join(config_data['DATASETS_PATH'], path)
         # Check TYPE to get img_path
         if config_data['TYPE'] == 'IMAGE':
             img_path = path
