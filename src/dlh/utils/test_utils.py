@@ -23,7 +23,12 @@ from dlh.data_management.utils import get_img_path_from_label_path, fetch_subjec
 CONTRAST = {'t1': ['T1w'],
             't2': ['T2w'],
             't2s':['T2star'],
-            't1_t2': ['T1w', 'T2w']}
+            't1_t2': ['T1w', 'T2w'],
+            'psir': ['PSIR'],
+            'stir': ['STIR'],
+            'psir_stir': ['PSIR', 'STIR'],
+            't1_t2_psir_stir': ['T1w', 'T2w', 'PSIR', 'STIR']
+            }
 
 ## Functions  
 def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save=False, target_th=0.5):
@@ -48,12 +53,14 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
             ych = np.where(ych>0, 1.0, 0)
             ych = np.uint8(ych)
             num_labels, labels_im, states, centers = cv2.connectedComponentsWithStats(ych)
-            count_list.append(num_labels-1) # Number of "object" in the image --> "-1" because we remove the backgroung
-            center_list[str(idy)] = [t[::-1] for t in centers[1:]]
-            Final[idx, idy] = ych_fin
-            
-        if np.prod(count_list)>25000:
+            if (num_labels-1) * np.prod(count_list) < 1000 and (num_labels-1) < 4: # Remove masks with too many predictions
+                count_list.append(num_labels-1) # Number of "object" in the image --> "-1" because we remove the backgroung
+                center_list[str(idy)] = [t[::-1] for t in centers[1:]]
+                Final[idx, idy] = ych_fin
+        
+        if not count_list:
             raise ValueError("Trop de possibilités")
+        
         ups = []
         for c in count_list:
             ups.append(range(c))
@@ -62,8 +69,8 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
         best_skeleton = []
         for comb in combs:
             cnd_skeleton = []
-            for joint_idx, cnd_joint_idx in enumerate(comb):
-                cnd_center = center_list[str(joint_idx)][cnd_joint_idx]
+            for joint_idx, cnd_joint_idx in zip(center_list.keys(), comb):
+                cnd_center = center_list[joint_idx][cnd_joint_idx]
                 cnd_skeleton.append(cnd_center)
             loss = check_skeleton(cnd_skeleton, norm_mean_skeleton) # Compare each disc combination with norm_mean_skeleton
             if best_loss > loss:
@@ -90,9 +97,11 @@ def extract_skeleton(inputs, outputs, norm_mean_skeleton, target=None, Flag_save
         Final = Final * Final2
         
         out_dict = {}
+        z_coord = 0
         for i, disc_idx in enumerate(discs_idx):
-            out_dict[str(int(disc_idx)+1)] = best_skeleton[i]          
-        
+            if best_skeleton[i][0] > z_coord: # Track z coordinate to ensure increasing disc value
+                out_dict[str(int(disc_idx)+1)] = best_skeleton[i]          
+                z_coord = best_skeleton[i][0]
         skeleton_images.append(hits)
         out_list.append(out_dict)
         
@@ -188,32 +197,37 @@ def load_niftii_split(config_data, split='TRAINING'):
         raise ValueError('TYPE LABEL not detected: PLZ specify paths to labels for training in config file')
     
     # Get file paths based on split
-    label_paths = config_data[split]
+    paths = config_data[split]
     
     # Init progression bar
-    bar = Bar(f'Load {split} data with pre-processing', max=len(label_paths))
+    bar = Bar(f'Load {split} data with pre-processing', max=len(paths))
     
     imgs = []
     masks = []
     discs_labels_list = []
     subjects = []
     shapes = []
-    for label_path in label_paths:
+    for path in paths:
+        if config_data['DATASETS_PATH']:
+            label_path = os.path.join(config_data['DATASETS_PATH'], path)
+        else:
+            label_path = path
         img_path = get_img_path_from_label_path(label_path)
         if not os.path.exists(img_path) or not os.path.exists(label_path):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
         else:
             # Applying preprocessing steps
             image, mask, discs_labels = apply_preprocessing(img_path, label_path)
-            imgs.append(image)
-            masks.append(mask)
-            discs_labels_list.append(discs_labels)
-            subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
-            subjects.append(subject)
-            shapes.append(get_midNifti(img_path).shape)
+            if discs_labels: # Check if file not empty
+                imgs.append(image)
+                masks.append(mask)
+                discs_labels_list.append(discs_labels)
+                subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
+                subjects.append(subject)
+                shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{label_paths.index(label_path)+1}/{len(label_paths)}'
+        bar.suffix  = f'{label_paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
@@ -239,11 +253,15 @@ def load_img_only(config_data, split='TESTING'):
     subjects = []
     shapes = []
     for path in paths:
+        if config_data['DATASETS_PATH']:
+            file_path = os.path.join(config_data['DATASETS_PATH'], path)
+        else:
+            file_path = path
         # Check TYPE to get img_path
         if config_data['TYPE'] == 'IMAGE':
-            img_path = path
+            img_path = file_path
         elif config_data['TYPE'] == 'LABEL':
-            img_path = get_img_path_from_label_path(path)
+            img_path = get_img_path_from_label_path(file_path)
         else:
             raise ValueError('TYPE error: The TYPE can only be "IMAGE" or "LABEL"')
 
