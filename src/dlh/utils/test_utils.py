@@ -208,7 +208,7 @@ def load_niftii_split(config_data, split='TRAINING'):
     subjects = []
     shapes = []
     for path in paths:
-        if config_data['DATASETS_PATH']:
+        if 'DATASETS_PATH' in config_data.keys():
             label_path = os.path.join(config_data['DATASETS_PATH'], path)
         else:
             label_path = path
@@ -227,7 +227,7 @@ def load_niftii_split(config_data, split='TRAINING'):
                 shapes.append(get_midNifti(img_path).shape)
         
         # Plot progress
-        bar.suffix  = f'{label_paths.index(path)+1}/{len(paths)}'
+        bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
     return imgs, masks, discs_labels_list, subjects, shapes
@@ -253,7 +253,7 @@ def load_img_only(config_data, split='TESTING'):
     subjects = []
     shapes = []
     for path in paths:
-        if config_data['DATASETS_PATH']:
+        if 'DATASETS_PATH' in config_data.keys():
             file_path = os.path.join(config_data['DATASETS_PATH'], path)
         else:
             file_path = path
