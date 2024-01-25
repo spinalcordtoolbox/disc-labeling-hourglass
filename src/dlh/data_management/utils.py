@@ -7,7 +7,7 @@ from pathlib import Path
 def get_img_path_from_label_path(str_path):
     """
     This function does 2 things: ⚠️ Files need to be stored in a BIDS compliant dataset
-        - Step 1: Remove label suffix (e.g. "_labels-disc-manual"). The suffix is always between the MRI contrast and the file extension.
+        - Step 1: Remove label suffix and derivative entities after the contrast (e.g. "_label-discs_dlabel"). All the information between the MRI contrast and the file extension will be removed.
         - Step 2: Remove derivatives path (e.g. derivatives/labels/). The first folders is always called derivatives but the second may vary (e.g. labels_soft)
 
     :param path: absolute path to the label img. Example: /<path_to_BIDS_data>/derivatives/labels/sub-amuALT/anat/sub-amuALT_T1w_labels-disc-manual.nii.gz
@@ -21,7 +21,11 @@ def get_img_path_from_label_path(str_path):
     ext = ''.join(path.suffixes)
 
     # Get img name
-    img_name = '_'.join(path.name.split('_')[:-1]) + ext
+    path_list = path.name.split('_')
+    suffixes_pos = [1 if len(part.split('-')) == 1 else 0 for part in path_list]
+    contrast_idx = suffixes_pos.index(1) # Find the first suffix
+
+    img_name = '_'.join(path.name.split('_')[:contrast_idx+1]) + ext
     
     # Create a list of the directories
     dir_list = str(path.parent).split('/')
