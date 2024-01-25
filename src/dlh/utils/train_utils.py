@@ -395,15 +395,13 @@ def apply_preprocessing(img_path, target_path=''):
     image_in = get_midNifti(img_path)
     image = (image_in - np.mean(image_in))/(np.std(image_in)+1e-100) # Equivalent to images_normalization function in dlh.utils.data2array
     image = normalize(image)
-    image = cv2.resize(image, (256, 256))
     image = image.astype(np.float32)
         
     if target_path != '':
         discs_labels = mask2label(target_path)
-        discs_labels = [coord for coord in discs_labels if coord[-1] < 25] # Remove labels superior to 25, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
+        discs_labels = [coord for coord in discs_labels if coord[-1] < 26] # Remove labels superior to 25, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
         mask = extract_all(discs_labels, shape_im=image_in.shape)
         mask = normalize(mask[0,:,:])
-        mask = cv2.resize(mask, (256, 256))
         mask = mask.astype(np.float32)
         return image, mask, discs_labels
     else:
