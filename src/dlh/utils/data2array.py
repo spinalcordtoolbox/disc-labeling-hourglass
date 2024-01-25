@@ -76,9 +76,17 @@ def get_midNifti(path_im):
     :return:
     """
     a = Image(path_im).change_orientation('RSP')
+    nx, ny, nz, nt, px, py, pz, pt = a.dim
+    nb_slice = 1
+    while (nb_slice + 2)*px < 3: # To avoid having too blurry images
+        nb_slice += 2 # Add 2 to always be symetrical
+
     arr = np.array(a.data)
     ind = arr.shape[0]//2
-    return np.mean(arr[ind - 3:ind + 3, :, :], 0)
+    if nb_slice > 1:
+        return np.mean(arr[ind - (nb_slice-1)/2:ind + (nb_slice-1)/2, :, :], 0)
+    else:
+        return arr[ind, :, :]
 
 
 def images_normalization(img_list, std=True):
