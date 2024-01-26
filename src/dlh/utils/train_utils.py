@@ -136,8 +136,15 @@ class image_Dataset(Dataset):
         return ys_ch, vis
 
     def transform(self, image, mask=None):
-        image = normalize(image[:, :, 0])
+        image = normalize(image)
+        image = cv2.resize(image, (256, 256))
         image = np.expand_dims(image, -1)
+
+        if not mask is None:
+            resized_mask = np.zeros((256, 256, mask.shape[-1]))
+            for i in range(mask.shape[-1]):
+                resized_mask[:,:,i] = cv2.resize(mask[:, :, i], (256, 256))
+            mask = resized_mask
 
         ## extract joints for pose model
         # Random horizontal flipping
