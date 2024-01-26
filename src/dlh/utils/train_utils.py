@@ -26,7 +26,7 @@ def normalize(arr):
 
 
 # Useful function to generate a Gaussian Function on given coordinates. Used to generate groudtruth.
-def label2MaskMap_GT(data, shape, c_dx=0, c_dy=0, radius=5, normalize=False):
+def label2MaskMap_GT(data, shape, res_im, c_dx=0, c_dy=0, radius=2, normalize=False):
     """
     Generate a Mask map from the coordenates
     :param shape: dimension of output
@@ -60,7 +60,7 @@ def label2MaskMap_GT(data, shape, c_dx=0, c_dy=0, radius=5, normalize=False):
 
     # Mean vector and covariance matrix
     mu = np.array([x, y])
-    Sigma = np.array([[radius, 0], [0, radius]])
+    Sigma = np.array([[radius/res_im[1], 0], [0, radius/res_im[0]]]) # we divide by the resolution to have pixels
 
     # The distribution on the variables X, Y packed into pos.
     Z = multivariate_gaussian(pos, mu, Sigma)
@@ -81,17 +81,18 @@ def label2MaskMap_GT(data, shape, c_dx=0, c_dy=0, radius=5, normalize=False):
     return np.asarray(maskMap)
 
 
-def extract_all(list_coord_label, shape_im):
+def extract_all(list_coord_label, res_im, shape_im):
     """
     Create groundtruth by creating gaussian Function for every ground truth points for a single image
     :param list_coord_label: list of ground truth coordinates
+    :param res_im: image resolution
     :param shape_im: shape of output image with zero padding
     :return: a 2d heatmap image.
     """
     shape_tmp = (1, shape_im[0], shape_im[1])
     final = np.zeros(shape_tmp[1:])
     for coord in list_coord_label:
-        train_lbs_tmp_mask = label2MaskMap_GT(coord, shape_tmp)
+        train_lbs_tmp_mask = label2MaskMap_GT(coord, shape_tmp, res_im)
         np.maximum(final, train_lbs_tmp_mask, out=final)
     return np.expand_dims(final, axis=0)
 
@@ -398,9 +399,7 @@ def apply_preprocessing(img_path, target_path=''):
     image = image.astype(np.float32)
         
     if target_path != '':
-        discs_labels = mask2label(target_path)
-        discs_labels = [coord for coord in discs_labels if coord[-1] < 26] # Remove labels superior to 25, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
-        mask = extract_all(discs_labels, shape_im=image_in.shape)
+        mask = extract_all(discs_labels, res_image, shape_im=image_in.shape)
         mask = normalize(mask[0,:,:])
         mask = mask.astype(np.float32)
         return image, mask, discs_labels
