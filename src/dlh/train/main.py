@@ -61,16 +61,19 @@ def main(args):
     
     # Loading images for training and validation
     print('loading images...')
-    imgs_train, masks_train, discs_labels_train, subjects_train, _ = load_niftii_split(config_data=config_data, 
-                                                                                    split='TRAINING')
+    imgs_train, masks_train, discs_labels_train, subjects_train, res_train, _ = load_niftii_split(config_data=config_data,
+                                                                                       num_channel=args.ndiscs, 
+                                                                                       split='TRAINING')
     
-    imgs_val, masks_val, discs_labels_val, subjects_val, _ = load_niftii_split(config_data=config_data, 
-                                                                            split='VALIDATION')
+    imgs_val, masks_val, discs_labels_val, subjects_val, res_val, _ = load_niftii_split(config_data=config_data,
+                                                                               num_channel=args.ndiscs,
+                                                                               split='VALIDATION')
     
     ## Create a dataset loader
     full_dataset_train = image_Dataset(images=imgs_train, 
                                        targets=masks_train,
                                        discs_labels=discs_labels_train,
+                                       img_res=res_train,
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
                                        use_flip = True,
@@ -80,6 +83,7 @@ def main(args):
     full_dataset_val = image_Dataset(images=imgs_val, 
                                     targets=masks_val,
                                     discs_labels=discs_labels_val,
+                                    img_res=res_val,
                                     subjects_names=subjects_val,
                                     num_channel=args.ndiscs,
                                     use_flip = False,

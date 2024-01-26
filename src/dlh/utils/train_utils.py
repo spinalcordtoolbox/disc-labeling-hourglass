@@ -98,11 +98,12 @@ def extract_all(list_coord_label, res_im, shape_im):
 
 
 class image_Dataset(Dataset):
-    def __init__(self, images, targets=None, discs_labels=None, subjects_names=None, num_channel=None, use_flip=True, load_mode='test'):  # initial logic happens like transform
+    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, load_mode='test'):  # initial logic happens like transform
         
         self.images = images
         self.targets = targets
         self.discs_labels = discs_labels
+        self.img_res = img_res
         self.subjects_names = subjects_names
         self.num_channel = num_channel
         self.num_vis_joints = []
