@@ -11,6 +11,7 @@ import numpy as np
 import cv2
 from scipy import signal
 import copy
+from random import randint
 import torch
 from torch.utils.data import Dataset
 from torchvision.utils import make_grid
@@ -134,6 +135,35 @@ class image_Dataset(Dataset):
             ys_ch[:,:, 0] = msk
             vis = np.ones((num_ch, 1))
         return ys_ch, vis
+    
+    def rand_crop(self, image, mask, discs_labels, img_res, min_discs=4):
+        """
+        Create a random crop for an image and its mask based on the number of visible discs.
+        :param image: 2D image
+        :param mask: 2D mask corresponding to the image
+        :param discs_labels: Coordinates of the discs
+        :param min_discs: Minimum number of discs that have to be visible in the image.
+        """
+        shape = image.shape
+        if len(discs_labels) > min_discs:
+            rand_num_discs = randint(min_discs, len(discs_labels)) # Get a random number of discs to keep
+            rand_start_disc = randint(1, len(discs_labels)-rand_num_discs+1) # Get a random discs to start (the start disc is included)
+        else:
+            rand_num_discs = len(discs_labels)
+            rand_start_disc = 1
+        included_discs = discs_labels[rand_start_disc-1:rand_start_disc-1 + rand_num_discs]
+
+        # Set not included discs masks to 0
+        mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
+
+        # Get cropping coordinates
+        y_min = included_discs[0,1]
+        y_max = included_discs[-1,1]
+        x_min = included_discs[0,2]
+        x_max = included_discs[-1,2]
+
+
+        return
 
     def transform(self, image, mask=None):
         image = normalize(image)
@@ -175,11 +205,12 @@ class image_Dataset(Dataset):
     def __getitem__(self, index):
         
         image = self.images[index]
-        image = np.expand_dims(image, axis= -1)
         if not self.targets is None:
             mask = self.targets[index]
             discs_labels = np.array(self.discs_labels[index])
-            mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel)
+            img_res = np.array(self.img_res[index])
+            mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel) # Split discs into different classes
+            image, mask, discs_labels = self.rand_crop(image, mask, discs_labels, img_res, min_discs=4)
             t_image, t_mask = self.transform(image, mask)
             vis = torch.FloatTensor(vis)
         else:
