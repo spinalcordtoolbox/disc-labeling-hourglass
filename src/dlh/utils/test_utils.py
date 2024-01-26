@@ -179,13 +179,14 @@ def closest_node(node, nodes):
 
 
 ##
-def load_niftii_split(config_data, split='TRAINING'):
+def load_niftii_split(config_data, num_channel, split='TRAINING'):
     '''
     This function output 5 lists corresponding to:
         - the middle slices extracted from the niftii images
         - the corresponding 2D masks with discs labels
         - the discs labels
         - the subjects names
+        - image resolutions
         - the image slice shape
     
     :param config_data: Config dict where every label used for TRAINING, VALIDATION and/or TESTING has its path specified
@@ -207,6 +208,7 @@ def load_niftii_split(config_data, split='TRAINING'):
     discs_labels_list = []
     subjects = []
     shapes = []
+    resolutions = []
     for path in paths:
         if 'DATASETS_PATH' in config_data.keys():
             label_path = os.path.join(config_data['DATASETS_PATH'], path)
@@ -217,20 +219,21 @@ def load_niftii_split(config_data, split='TRAINING'):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
         else:
             # Applying preprocessing steps
-            image, mask, discs_labels = apply_preprocessing(img_path, label_path)
+            image, mask, discs_labels, res_image, shape_image = apply_preprocessing(img_path, label_path, num_channel)
             if discs_labels: # Check if file not empty
                 imgs.append(image)
                 masks.append(mask)
                 discs_labels_list.append(discs_labels)
                 subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
                 subjects.append(subject)
-                shapes.append(get_midNifti(img_path).shape)
+                resolutions.append(res_image)
+                shapes.append(shape_image)
         
         # Plot progress
         bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
-    return imgs, masks, discs_labels_list, subjects, shapes
+    return imgs, masks, discs_labels_list, subjects, resolutions, shapes
 
 def load_img_only(config_data, split='TESTING'):
     '''
@@ -238,6 +241,7 @@ def load_img_only(config_data, split='TESTING'):
         - the middle slice extracted from the niftii images
         - the subjects names
         - the images shapes
+        - image resolutions
     
     :param config_data: Config dict where every image used for TRAINING, VALIDATION and/or TESTING has its path specified
     :param split: Split of the data needed ('TRAINING', 'VALIDATION', 'TESTING')
@@ -252,6 +256,7 @@ def load_img_only(config_data, split='TESTING'):
     imgs = []
     subjects = []
     shapes = []
+    resolutions = []
     for path in paths:
         if 'DATASETS_PATH' in config_data.keys():
             file_path = os.path.join(config_data['DATASETS_PATH'], path)
@@ -270,14 +275,15 @@ def load_img_only(config_data, split='TESTING'):
             print(f'Error while loading subject\n {img_path} does not exist')
         else:
             # Applying preprocessing steps
-            image = apply_preprocessing(img_path)
+            image, res_image, shape_image = apply_preprocessing(img_path)
             imgs.append(image)
             subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
             subjects.append(subject)
-            shapes.append(get_midNifti(img_path).shape)
+            resolutions.append(res_image)
+            shapes.append(shape_image)
         
         # Plot progress
         bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
-    return imgs, subjects, shapes
+    return imgs, subjects, shapes, resolutions
