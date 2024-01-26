@@ -387,21 +387,25 @@ def loss_per_subject(pred, target, vis, vis_out, criterion):
             losses.append(criterion(torch.unsqueeze(pred[idx], 0), torch.unsqueeze(target[idx], 0), torch.unsqueeze(vis[idx], 0), torch.unsqueeze(vis_out[idx], 0)).item())
     return losses
 
-def apply_preprocessing(img_path, target_path=''):
+def apply_preprocessing(img_path, target_path='', num_channel=25):
     '''
     Load and apply preprocessing steps on input data
     :param img_path: Path to Niftii image
     :param target_path: Path to Niftii target mask
     '''
-    image_in = get_midNifti(img_path)
+    image_in, res_image, shape_image = get_midNifti(img_path)
     image = (image_in - np.mean(image_in))/(np.std(image_in)+1e-100) # Equivalent to images_normalization function in dlh.utils.data2array
     image = normalize(image)
     image = image.astype(np.float32)
         
     if target_path != '':
+        discs_labels, res_target, shape_target = mask2label(target_path)
+        if res_image != res_target or shape_image != shape_target:
+            raise ValueError(f'Image {img_path} and target {target_path} have different shapes or resolutions')
+        discs_labels = [coord for coord in discs_labels if coord[-1] < num_channel+1] # Remove labels superior to the number of channels, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
         mask = extract_all(discs_labels, res_image, shape_im=image_in.shape)
         mask = normalize(mask[0,:,:])
         mask = mask.astype(np.float32)
-        return image, mask, discs_labels
+        return image, mask, discs_labels, res_image, image_in.shape
     else:
-        return image
+        return image, res_image, image_in.shape
