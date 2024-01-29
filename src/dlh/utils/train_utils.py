@@ -136,13 +136,14 @@ class image_Dataset(Dataset):
             vis = np.ones((num_ch, 1))
         return ys_ch, vis
     
-    def rand_crop(self, image, mask, discs_labels, img_res, min_discs=4):
+    def rand_crop(self, image, mask, discs_labels, img_res, min_discs=4, shift=20):
         """
         Create a random crop for an image and its mask based on the number of visible discs.
         :param image: 2D image
         :param mask: 2D mask corresponding to the image
         :param discs_labels: Coordinates of the discs
         :param min_discs: Minimum number of discs that have to be visible in the image.
+        :param min_discs: Random millimeter shif that will be added to the cropping.
         """
         shape = image.shape
         if len(discs_labels) > min_discs:
@@ -162,6 +163,19 @@ class image_Dataset(Dataset):
         x_min = included_discs[0,2]
         x_max = included_discs[-1,2]
 
+        # Add random shift to the coodinates
+        y_shift = shift
+        x_shift = round(shift + shape[1]//2)
+        y_min_shift = -randint(0, y_shift)//img_res[0] if (y_min - shift//img_res[0])>=0 else -randint(0, int(y_min))//img_res[0]
+        y_max_shift = randint(0, x_shift)//img_res[0] if (y_max + shift//img_res[0])<shape[0] else randint(0, int(shape[0]-1-y_max))//img_res[0]
+        x_min_shift = -randint(0, y_shift)//img_res[1] if (x_min - shift//img_res[1])>=0 else -randint(0, int(x_min))//img_res[1]
+        x_max_shift = randint(0, x_shift)//img_res[1] if (x_max + shift//img_res[1])<shape[1] else randint(0, int(shape[1]-1-x_max))//img_res[1]
+        y_min = round(y_min + y_min_shift)
+        y_max = round(y_max + y_max_shift)
+        x_min = round(x_min + x_min_shift)
+        x_max = round(x_max + x_max_shift)
+
+        print(shape)
 
         return
 
