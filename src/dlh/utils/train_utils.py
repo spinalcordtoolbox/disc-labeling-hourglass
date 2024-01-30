@@ -136,14 +136,16 @@ class image_Dataset(Dataset):
             vis = np.ones((num_ch, 1))
         return ys_ch, vis
     
-    def rand_crop(self, image, mask, discs_labels, img_res, min_discs=4, shift=20):
+    def rand_crop(self, image, mask, discs_labels, img_res, min_discs=4, dy_disc=8, dx_disc=25):
         """
         Create a random crop for an image and its mask based on the number of visible discs.
         :param image: 2D image
         :param mask: 2D mask corresponding to the image
         :param discs_labels: Coordinates of the discs
+        :param img_res: Image resolution (mm/pixel).
         :param min_discs: Minimum number of discs that have to be visible in the image.
-        :param min_discs: Random millimeter shif that will be added to the cropping.
+        :param dy_disc: Vertical size of an intervertebral disc.
+        :param dx_disc: Horizontal size of an intervertebral disc.
         """
         shape = image.shape
         if len(discs_labels) > min_discs:
@@ -157,27 +159,53 @@ class image_Dataset(Dataset):
         # Set not included discs masks to 0
         mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
 
-        # Get cropping coordinates
-        y_min = included_discs[0,1]
-        y_max = included_discs[-1,1]
-        x_min = included_discs[0,2]
-        x_max = included_discs[-1,2]
+        # Get min and max discs coordinates
+        disc_min_num = included_discs[0,-1]
+        disc_max_num = included_discs[-1,-1]
+        x_min_coord = min(included_discs[:,2]) # Smallest x coordinate for an included disc
+        x_max_coord = max(included_discs[:,2]) # Biggest x coordinate for an included disc
+
+        # Get coordinates of the first and the last included discs
+        y_first_disc = included_discs[0,1]
+        y_last_disc = included_discs[-1,1]
+        x_first_disc = included_discs[0,2]
+        x_last_disc = included_discs[-1,2]
+
+        # Set vertical shift constraint with the last not included top (or bottom) discs or the maximum (or minimum) image size
+        if disc_min_num != discs_labels[0,-1]:
+            sup_max_shift = y_first_disc - discs_labels[np.where(discs_labels[:,-1]==disc_min_num-1)][:,1][0]
+            sup_max_shift = round(sup_max_shift - (dy_disc/2)*img_res[0]) if round(sup_max_shift - (dy_disc/2)*img_res[0])>=0 else round(sup_max_shift) # Deal with disc thickness
+        else:
+            sup_max_shift = y_first_disc
+
+        if disc_max_num != discs_labels[-1,-1]:
+            inf_max_shift =  discs_labels[np.where(discs_labels[:,-1]==disc_max_num+1)][:,1][0] - y_last_disc
+            inf_max_shift =  round(inf_max_shift - (dy_disc/2)*img_res[0]) if round(inf_max_shift - (dy_disc/2)*img_res[0])>=0 else round(inf_max_shift) # Deal with disc thickness
+        else:
+            inf_max_shift = shape[0] - y_last_disc
+
+        sup_min_shift = round((dy_disc/2)*img_res[0]) if round((dy_disc/2)*img_res[0])<sup_max_shift else 0
+        inf_min_shift = round((dy_disc/2)*img_res[0]) if round((dy_disc/2)*img_res[0])<inf_max_shift else 0
+
+        # Set horizontal shift constraint based on the first disc coordinates
+        left_max_shift = x_first_disc
+        left_min_shift = round(x_first_disc - x_min_coord + (dx_disc/6)*img_res[1])
+        right_max_shift = int(shape[1] - x_first_disc - 1)
+        right_min_shift = round(x_max_coord - x_first_disc + dx_disc*img_res[1]) # Add disc horizontal width
+        
+        # Set random shifts based on the constraints
+        x_shift_left = randint(left_min_shift, left_max_shift)
+        x_shift_right = randint(right_min_shift, right_max_shift)
+        y_shift_superior = randint(sup_min_shift, sup_max_shift)
+        y_shift_inferior = randint(inf_min_shift, inf_max_shift)
 
         # Add random shift to the coodinates
-        y_shift = shift
-        x_shift = round(shift + shape[1]//2)
-        y_min_shift = -randint(0, y_shift)//img_res[0] if (y_min - shift//img_res[0])>=0 else -randint(0, int(y_min))//img_res[0]
-        y_max_shift = randint(0, x_shift)//img_res[0] if (y_max + shift//img_res[0])<shape[0] else randint(0, int(shape[0]-1-y_max))//img_res[0]
-        x_min_shift = -randint(0, y_shift)//img_res[1] if (x_min - shift//img_res[1])>=0 else -randint(0, int(x_min))//img_res[1]
-        x_max_shift = randint(0, x_shift)//img_res[1] if (x_max + shift//img_res[1])<shape[1] else randint(0, int(shape[1]-1-x_max))//img_res[1]
-        y_min = round(y_min + y_min_shift)
-        y_max = round(y_max + y_max_shift)
-        x_min = round(x_min + x_min_shift)
-        x_max = round(x_max + x_max_shift)
+        y_min = round(y_first_disc - y_shift_superior)
+        y_max = round(y_last_disc + y_shift_inferior)
+        x_min = round(x_first_disc - x_shift_left)
+        x_max = round(x_first_disc + x_shift_right)
 
-        print(shape)
-
-        return
+        return image[y_min:y_max,x_min:x_max], mask[y_min:y_max,x_min:x_max,:], included_discs
 
     def transform(self, image, mask=None):
         image = normalize(image)
