@@ -136,7 +136,7 @@ class image_Dataset(Dataset):
             vis = np.ones((num_ch, 1))
         return ys_ch, vis
     
-    def rand_crop(self, image, mask, discs_labels, img_res, min_discs=4, dy_disc=8, dx_disc=25):
+    def rand_crop(self, image, mask, discs_labels, img_res, vis, min_discs=4, dy_disc=8, dx_disc=25):
         """
         Create a random crop for an image and its mask based on the number of visible discs.
         :param image: 2D image
@@ -158,6 +158,7 @@ class image_Dataset(Dataset):
 
         # Set not included discs masks to 0
         mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
+        vis[~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1]),:]=0
 
         # Get min and max discs coordinates
         disc_min_num = included_discs[0,-1]
@@ -205,7 +206,7 @@ class image_Dataset(Dataset):
         x_min = round(x_first_disc - x_shift_left)
         x_max = round(x_first_disc + x_shift_right)
 
-        return image[y_min:y_max,x_min:x_max], mask[y_min:y_max,x_min:x_max,:], included_discs
+        return image[y_min:y_max,x_min:x_max], mask[y_min:y_max,x_min:x_max,:], included_discs, vis
 
     def transform(self, image, mask=None):
         image = normalize(image)
@@ -252,7 +253,7 @@ class image_Dataset(Dataset):
             discs_labels = np.array(self.discs_labels[index])
             img_res = np.array(self.img_res[index])
             mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel) # Split discs into different classes
-            image, mask, discs_labels = self.rand_crop(image, mask, discs_labels, img_res, min_discs=4)
+            image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=4)
             t_image, t_mask = self.transform(image, mask)
             vis = torch.FloatTensor(vis)
         else:
