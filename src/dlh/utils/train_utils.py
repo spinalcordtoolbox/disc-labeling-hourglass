@@ -158,8 +158,9 @@ class image_Dataset(Dataset):
         included_discs = discs_labels[rand_start_disc-1:rand_start_disc-1 + rand_num_discs]
 
         # Set not included discs masks to 0
-        mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
-        vis[~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1]),:]=0
+        if mask.shape[-1] != 1:
+            mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
+            vis[~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1]),:]=0
 
         # Get min and max discs coordinates
         disc_min_num = included_discs[0,-1]
@@ -191,9 +192,9 @@ class image_Dataset(Dataset):
 
         # Set horizontal shift constraint based on the first disc coordinates
         left_max_shift = x_first_disc
-        left_min_shift = round(x_first_disc - x_min_coord + (dx_disc/6)*img_res[1])
+        left_min_shift = round(x_first_disc - x_min_coord + (dx_disc/6)*img_res[1]) if round(x_first_disc - x_min_coord + (dx_disc/6)*img_res[1]) <= left_max_shift else round(x_first_disc - x_min_coord)
         right_max_shift = int(shape[1] - x_first_disc - 1)
-        right_min_shift = round(x_max_coord - x_first_disc + dx_disc*img_res[1]) # Add disc horizontal width
+        right_min_shift = round(x_max_coord - x_first_disc + dx_disc*img_res[1]) if round(x_max_coord - x_first_disc + dx_disc*img_res[1]) <= right_max_shift else round(x_max_coord - x_first_disc)  # Add disc horizontal width
         
         # Set random shifts based on the constraints
         x_shift_left = randint(left_min_shift, left_max_shift)
@@ -486,7 +487,10 @@ def apply_preprocessing(img_path, target_path='', num_channel=25):
         discs_labels, res_target, shape_target = mask2label(target_path)
         if res_image != res_target or shape_image != shape_target:
             raise ValueError(f'Image {img_path} and target {target_path} have different shapes or resolutions')
-        discs_labels = [coord for coord in discs_labels if coord[-1] < num_channel+1] # Remove labels superior to the number of channels, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
+        if num_channel != 1:
+            discs_labels = [coord for coord in discs_labels if coord[-1] < num_channel+1] # Remove labels superior to the number of channels, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
+        else:
+            discs_labels = [coord for coord in discs_labels if coord[-1] < 26] # Remove labels superior to the number of channels, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
         mask = extract_all(discs_labels, res_image, shape_im=image_in.shape)
         mask = normalize(mask[0,:,:])
         mask = mask.astype(np.float32)
