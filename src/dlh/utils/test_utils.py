@@ -209,6 +209,7 @@ def load_niftii_split(config_data, num_channel, split='TRAINING'):
     subjects = []
     shapes = []
     resolutions = []
+    problematic_gt = []
     for path in paths:
         if 'DATASETS_PATH' in config_data.keys():
             label_path = os.path.join(config_data['DATASETS_PATH'], path)
@@ -220,7 +221,7 @@ def load_niftii_split(config_data, num_channel, split='TRAINING'):
         else:
             # Applying preprocessing steps
             image, mask, discs_labels, res_image, shape_image = apply_preprocessing(img_path, label_path, num_channel)
-            if discs_labels: # Check if file not empty
+            if discs_labels and (max(np.array(discs_labels)[:,-1])+1-min(np.array(discs_labels)[:,-1]) == len(np.array(discs_labels))) and (np.array(discs_labels)[:,1] == np.sort(np.array(discs_labels)[:,1])).all(): # Check if file not empty or missing discs
                 imgs.append(image)
                 masks.append(mask)
                 discs_labels_list.append(discs_labels)
@@ -228,11 +229,14 @@ def load_niftii_split(config_data, num_channel, split='TRAINING'):
                 subjects.append(subject)
                 resolutions.append(res_image)
                 shapes.append(shape_image)
+            else:
+                problematic_gt.append(label_path)
         
         # Plot progress
         bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
         bar.next()
     bar.finish()
+    print("Error with these ground truth\n" + '\n'.join(problematic_gt))
     return imgs, masks, discs_labels_list, subjects, resolutions, shapes
 
 def load_img_only(config_data, split='TESTING'):
