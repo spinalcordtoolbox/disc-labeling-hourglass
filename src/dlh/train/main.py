@@ -9,7 +9,7 @@ from __future__ import print_function, absolute_import
 import os
 import argparse
 import time
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -54,7 +54,7 @@ def main(args):
     random.seed(seed)
 
     # select proper device to run
-    device = torch.device("cuda:0") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cudnn.benchmark = True  
 
     # Read json file and create a dictionary
