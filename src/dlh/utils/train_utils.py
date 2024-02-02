@@ -99,7 +99,7 @@ def extract_all(list_coord_label, res_im, shape_im):
 
 
 class image_Dataset(Dataset):
-    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, load_mode='test'):  # initial logic happens like transform
+    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, use_crop=False, load_mode='test'):  # initial logic happens like transform
         
         self.images = images
         self.targets = targets
@@ -109,6 +109,7 @@ class image_Dataset(Dataset):
         self.num_channel = num_channel
         self.num_vis_joints = []
         self.use_flip = use_flip
+        self.use_crop = use_crop
         self.load_mode = load_mode
 
     def __len__(self):  # return count of sample we have
@@ -253,7 +254,8 @@ class image_Dataset(Dataset):
             discs_labels = np.array(self.discs_labels[index])
             img_res = np.array(self.img_res[index])
             mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel) # Split discs into different classes
-            image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=4)
+            if self.use_crop:
+                image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=4)
             t_image, t_mask = self.transform(image, mask)
             vis = torch.FloatTensor(vis)
         else:
