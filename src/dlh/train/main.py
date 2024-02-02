@@ -90,6 +90,7 @@ def main(args):
                                        subjects_names=subjects_train,
                                        num_channel=args.ndiscs,
                                        use_flip = True,
+                                       use_crop = args.use_crop,
                                        load_mode='train'
                                        )
 
@@ -100,6 +101,7 @@ def main(args):
                                     subjects_names=subjects_val,
                                     num_channel=args.ndiscs,
                                     use_flip = False,
+                                    use_crop = args.use_crop,
                                     load_mode='val'
                                     )
 
@@ -146,21 +148,19 @@ def main(args):
     
     # optionally resume from a checkpoint
     if args.resume:
-       print("=> loading checkpoint to continue learing process")
-       if args.att:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
-       else:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
-
+        print("=> loading checkpoint to continue learing process")
+        crop = '_crop' if args.use_crop else ''
+        att = '_att' if args.att else ''
+        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+       
     # evaluation only
     if args.evaluate:
         print('\nEvaluation only')
         print('loading the pretrained weight')
-        if args.att:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
-        else:
-            model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
-
+        crop = '_crop' if args.use_crop else ''
+        att = '_att' if args.att else ''
+        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+        
         if args.attshow:
             loss, acc = show_attention(MRI_val_loader, model, device)
         else:
@@ -211,20 +211,21 @@ def main(args):
         
         # remember best acc and save checkpoint
         if valid_acc > best_acc:
-           state = copy.deepcopy({'model_weights': model.state_dict()})
-           if args.att:
-                torch.save(state, f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
-           else:
-                torch.save(state, f'{weight_folder}/model_{contrast_str}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
-           best_acc = valid_acc
-           best_acc_epoch = epoch + 1
+            crop = '_crop' if args.use_crop else ''
+            att = '_att' if args.att else ''
+            state = copy.deepcopy({'model_weights': model.state_dict()})
+            torch.save(state, f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
+            best_acc = valid_acc
+            best_acc_epoch = epoch + 1
     
     if wandb_mode:
         # 🐝 log best score and epoch number to wandb
         wandb.log({"best_accuracy": best_acc, "best_accuracy_epoch": best_acc_epoch})
     
         # 🐝 version your model
-        best_model_path = f'{weight_folder}/model_{contrast_str}_att_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
+        crop = '_crop' if args.use_crop else ''
+        att = '_att' if args.att else ''
+        best_model_path = f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
         model_artifact = wandb.Artifact("hourglass", 
                                         type="model",
                                         description="Hourglass network for intervertebral discs labeling",
@@ -479,12 +480,14 @@ if __name__ == '__main__':
                         help='Resume the training from the last checkpoint (default=False)')  
     parser.add_argument('--attshow', default=False, type=bool,
                         help=' Show the attention map (default=False)') 
-    parser.add_argument('--epochs', default=120, type=int, metavar='N',
-                        help='number of total epochs to run (default=120)')
+    parser.add_argument('--epochs', default=1000, type=int, metavar='N',
+                        help='number of total epochs to run (default=1000)')
     parser.add_argument('--train-batch', default=3, type=int, metavar='N', 
                         help='train batchsize (default=3)')
     parser.add_argument('--val-batch', default=4, type=int, metavar='N',
                         help='validation batchsize (default=4)')
+    parser.add_argument('--use-crop', action='store_true',
+                        help='Use random crop (default=False)')
     parser.add_argument('--solver', metavar='SOLVER', default='rms',
                         choices=['rms', 'adam'],
                         help='optimizers: choices=["rms", "adam"] (default="rms")')
@@ -533,7 +536,10 @@ if __name__ == '__main__':
         args.train_contrast = json.load(open(args.config_data, "r"))['CONTRASTS']
 
         # Create file name
-        json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
+        if args.use_crop:
+            json_name = f'config_hg_{args.train_contrast}_crop_ndiscs_{args.ndiscs}.json'
+        else:
+            json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
         
         # Remove config-data and config-train from parser Namespace object
         saved_args = copy.copy(args) # To do a REAL copy of the object
@@ -552,7 +558,10 @@ if __name__ == '__main__':
         args.train_contrast = json.load(open(parser.parse_args().config_data, 'r'))['CONTRASTS']
 
         # Create file name
-        json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
+        if args.use_crop:
+            json_name = f'config_hg_{args.train_contrast}_crop_ndiscs_{args.ndiscs}.json'
+        else:
+            json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
 
         # Create a new json updated in the weight folder
         saved_args = copy.copy(args)
