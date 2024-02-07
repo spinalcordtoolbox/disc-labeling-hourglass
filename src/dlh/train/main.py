@@ -25,7 +25,7 @@ import random
 
 from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
-from dlh.models import JointsMSELoss
+from dlh.models import JointsMSELoss, JointsMSEandBCELoss
 from dlh.models.utils import AverageMeter, adjust_learning_rate, accuracy, dice_loss
 from dlh.utils.train_utils import image_Dataset, SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject
 from dlh.utils.test_utils import CONTRAST, load_niftii_split
@@ -91,6 +91,7 @@ def main(args):
                                        num_channel=args.ndiscs,
                                        use_flip = True,
                                        use_crop = args.use_crop,
+                                       use_lock_fov = args.use_lock_fov,
                                        load_mode='train'
                                        )
 
@@ -102,6 +103,7 @@ def main(args):
                                     num_channel=args.ndiscs,
                                     use_flip = False,
                                     use_crop = args.use_crop,
+                                    use_lock_fov = args.use_lock_fov,
                                     load_mode='val'
                                     )
 
@@ -128,7 +130,8 @@ def main(args):
     model = torch.nn.DataParallel(model).to(device)
 
     # define loss function (criterion) and optimizer
-    criterion = JointsMSELoss().to(device)
+    #criterion = JointsMSELoss().to(device)
+    criterion = JointsMSEandBCELoss(use_target_weight=True).to(device)
 
     if args.solver == 'rms':
         optimizer = torch.optim.RMSprop(
@@ -150,16 +153,18 @@ def main(args):
     if args.resume:
         print("=> loading checkpoint to continue learing process")
         crop = '_crop' if args.use_crop else ''
+        lockfov = '_lockfov' if args.use_lock_fov else ''
         att = '_att' if args.att else ''
-        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
        
     # evaluation only
     if args.evaluate:
         print('\nEvaluation only')
         print('loading the pretrained weight')
         crop = '_crop' if args.use_crop else ''
+        lockfov = '_lockfov' if args.use_lock_fov else ''
         att = '_att' if args.att else ''
-        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
         
         if args.attshow:
             loss, acc = show_attention(MRI_val_loader, model, device)
@@ -212,9 +217,10 @@ def main(args):
         # remember best acc and save checkpoint
         if valid_acc > best_acc:
             crop = '_crop' if args.use_crop else ''
+            lockfov = '_lockfov' if args.use_lock_fov else ''
             att = '_att' if args.att else ''
             state = copy.deepcopy({'model_weights': model.state_dict()})
-            torch.save(state, f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
+            torch.save(state, f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
             best_acc = valid_acc
             best_acc_epoch = epoch + 1
     
@@ -224,8 +230,9 @@ def main(args):
     
         # 🐝 version your model
         crop = '_crop' if args.use_crop else ''
+        lockfov = '_lockfov' if args.use_lock_fov else ''
         att = '_att' if args.att else ''
-        best_model_path = f'{weight_folder}/model_{contrast_str}{att}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
+        best_model_path = f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
         model_artifact = wandb.Artifact("hourglass", 
                                         type="model",
                                         description="Hourglass network for intervertebral discs labeling",
@@ -488,6 +495,8 @@ if __name__ == '__main__':
                         help='validation batchsize (default=4)')
     parser.add_argument('--use-crop', action='store_true',
                         help='Use random crop (default=False)')
+    parser.add_argument('--use-lock-fov', action='store_true',
+                        help='Use locked fov (default=False)')
     parser.add_argument('--solver', metavar='SOLVER', default='rms',
                         choices=['rms', 'adam'],
                         help='optimizers: choices=["rms", "adam"] (default="rms")')
@@ -536,10 +545,9 @@ if __name__ == '__main__':
         args.train_contrast = json.load(open(args.config_data, "r"))['CONTRASTS']
 
         # Create file name
-        if args.use_crop:
-            json_name = f'config_hg_{args.train_contrast}_crop_ndiscs_{args.ndiscs}.json'
-        else:
-            json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
+        lockfov = '_lockfov' if args.use_lock_fov else ''
+        crop = '_crop' if args.use_crop else ''
+        json_name = f'config_hg_{args.train_contrast}{lockfov}{crop}_ndiscs_{args.ndiscs}.json'
         
         # Remove config-data and config-train from parser Namespace object
         saved_args = copy.copy(args) # To do a REAL copy of the object
@@ -558,10 +566,9 @@ if __name__ == '__main__':
         args.train_contrast = json.load(open(parser.parse_args().config_data, 'r'))['CONTRASTS']
 
         # Create file name
-        if args.use_crop:
-            json_name = f'config_hg_{args.train_contrast}_crop_ndiscs_{args.ndiscs}.json'
-        else:
-            json_name = f'config_hg_{args.train_contrast}_ndiscs_{args.ndiscs}.json'
+        lockfov = '_lockfov' if args.use_lock_fov else ''
+        crop = '_crop' if args.use_crop else ''
+        json_name = f'config_hg_{args.train_contrast}{lockfov}{crop}_ndiscs_{args.ndiscs}.json'
 
         # Create a new json updated in the weight folder
         saved_args = copy.copy(args)
