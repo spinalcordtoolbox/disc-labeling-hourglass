@@ -99,7 +99,7 @@ def extract_all(list_coord_label, res_im, shape_im):
 
 
 class image_Dataset(Dataset):
-    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, use_crop=False, load_mode='test'):  # initial logic happens like transform
+    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, use_crop=False, use_lock_fov=False, load_mode='test'):  # initial logic happens like transform
         
         self.images = images
         self.targets = targets
@@ -110,6 +110,7 @@ class image_Dataset(Dataset):
         self.num_vis_joints = []
         self.use_flip = use_flip
         self.use_crop = use_crop
+        self.use_lock_fov = use_lock_fov
         self.load_mode = load_mode
 
     def __len__(self):  # return count of sample we have
@@ -137,7 +138,7 @@ class image_Dataset(Dataset):
             vis = np.ones((num_ch, 1))
         return ys_ch, vis
     
-    def rand_crop(self, image, mask, discs_labels, img_res, vis, min_discs=4, dy_disc=8, dx_disc=25):
+    def rand_crop(self, image, mask, discs_labels, img_res, vis, min_discs=5, dy_disc=8, dx_disc=25):
         """
         Create a random crop for an image and its mask based on the number of visible discs.
         :param image: 2D image
@@ -150,7 +151,7 @@ class image_Dataset(Dataset):
         """
         shape = image.shape
         if len(discs_labels) > min_discs:
-            rand_num_discs = randint(min_discs, len(discs_labels)) # Get a random number of discs to keep
+            rand_num_discs = min_discs #randint(min_discs, len(discs_labels)) # Get a random number of discs to keep
             rand_start_disc = randint(1, len(discs_labels)-rand_num_discs+1) # Get a random discs to start (the start disc is included)
         else:
             rand_num_discs = len(discs_labels)
@@ -210,6 +211,91 @@ class image_Dataset(Dataset):
 
         return image[y_min:y_max,x_min:x_max], mask[y_min:y_max,x_min:x_max,:], included_discs, vis
 
+    def rand_locked_fov(self, image, mask, discs_labels, img_res, vis, fov=(100,100)):
+        """
+        Lock the fov to a defined size based on the resolution. If the image is smaller than the fov, zeros will be added. If
+        the image is bigger, the position of the fov in the image will be random
+        :param fov: 2D image FOV in millimeter (X(mm),Y(mm))
+        :param image: 2D image
+        :param mask: mask corresponding to the image
+        :param discs_labels: Coordinates of the discs
+        :param img_res: Image resolution (mm/pixel).
+        :param vis: visible discs.
+        """
+        im_shape = image.shape
+        Y, X = round(fov[1]/img_res[0]), round(fov[0]/img_res[1])
+        if im_shape[0] > Y:
+            y_min = randint(0, im_shape[0]-Y)
+            y_max = y_min + Y-1
+            out_image = image[y_min:y_max+1,:]
+            out_mask = mask[y_min:y_max+1,:,:]
+            pad_y = 0
+        elif im_shape[0] == Y:
+            y_min = 0
+            y_max = im_shape[0]-1
+            out_image = image[:,:]
+            out_mask = mask[:,:,:]
+            pad_y = 0
+        else:
+            pad_y = Y - im_shape[0] # Calculate the total number of empty rows to add
+            top_zeros = pad_y//2
+            bottom_zeros = pad_y - top_zeros
+            out_image = np.zeros((Y,im_shape[1]))
+            out_mask = np.zeros((Y,im_shape[1],mask.shape[-1]))
+            out_image[top_zeros:Y-bottom_zeros,:]=image[:,:]
+            out_mask[top_zeros:Y-bottom_zeros,:,:]=mask[:,:,:]
+
+        
+        if im_shape[1] > X:
+            x_min = randint(0, im_shape[1]-X)
+            x_max = x_min + X-1
+            out_image = out_image[:,x_min:x_max+1]
+            out_mask = out_mask[:,x_min:x_max+1,:]
+            pad_x = 0
+        elif im_shape[1] == X:
+            x_min = 0
+            x_max = im_shape[0]-1
+            out_image = out_image[:,:]
+            out_mask = out_mask[:,:,:]
+            pad_x = 0
+        else:
+            pad_x = X - im_shape[1] # Calculate the number of empty columns to add
+            left_zeros = pad_x//2
+            right_zeros = pad_x - left_zeros
+            zer_image = np.zeros((Y,X))
+            zer_mask = np.zeros((Y,X,mask.shape[-1]))
+            zer_image[:,left_zeros:X-right_zeros]=out_image[:,:]
+            zer_mask[:,left_zeros:X-right_zeros,:]=out_mask[:,:,:]
+            out_image = zer_image[:,:]
+            out_mask = zer_mask[:,:,:]
+        
+        # Identify the included discs
+        if pad_x != 0:
+            x_range_min = 0
+            x_range_max = im_shape[1]-1
+        else:
+            x_range_min = x_min
+            x_range_max = x_max
+        
+        if pad_y != 0:
+            y_range_min = 0
+            y_range_max = im_shape[0]-1
+        else:
+            y_range_min = y_min
+            y_range_max = y_max
+        
+        included_discs = discs_labels[np.where((discs_labels[:,1]>=y_range_min) & \
+                                                (discs_labels[:,1]<=y_range_max) & \
+                                                (discs_labels[:,2]>=x_range_min) & \
+                                                (discs_labels[:,2]<=x_range_max))]
+        
+        # Set not included discs masks to 0
+        if mask.shape[-1] != 1:
+            mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
+            vis[~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1]),:]=0
+        
+        return out_image, out_mask, included_discs, vis
+
     def transform(self, image, mask=None):
         image = normalize(image)
         image = cv2.resize(image, (256, 256))
@@ -256,7 +342,9 @@ class image_Dataset(Dataset):
             img_res = np.array(self.img_res[index])
             mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel) # Split discs into different classes
             if self.use_crop:
-                image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=4)
+                image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=6)
+            if self.use_lock_fov:
+                image, mask, discs_labels, vis = self.rand_locked_fov(image, mask, discs_labels, img_res, vis, fov=(100,100))
             t_image, t_mask = self.transform(image, mask)
             vis = torch.FloatTensor(vis)
         else:
