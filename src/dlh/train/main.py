@@ -42,20 +42,21 @@ def main(args):
     vis_folder = args.visual_folder
     wandb_mode = args.wandb
 
+    # select proper device to run
+    device = torch.device("cuda") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    cudnn.benchmark = True 
+
     ## Set seed
     seed = 42
     os.environ['PYTHONHASHSEED'] = str(seed)
     # Torch RNG
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if device.type=='cuda':
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
     # Python RNG
     np.random.seed(seed)
-    random.seed(seed)
-
-    # select proper device to run
-    device = torch.device("cuda") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    cudnn.benchmark = True  
+    random.seed(seed) 
 
     # Read json file and create a dictionary
     with open(args.config_data, "r") as file:
@@ -127,8 +128,13 @@ def main(args):
         model = atthg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
     else:
         model = hg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
-    model = torch.nn.DataParallel(model).to(device)
-
+    
+    # Set model to device
+    if device.type=='cuda':
+        model = torch.nn.DataParallel(model).to(device)
+    else:
+        model = model.to(device=device)
+    
     # define loss function (criterion) and optimizer
     #criterion = JointsMSELoss().to(device)
     criterion = JointsMSEandBCELoss(use_target_weight=True).to(device)
