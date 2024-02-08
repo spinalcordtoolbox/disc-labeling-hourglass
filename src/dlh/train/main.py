@@ -294,24 +294,22 @@ def train(train_loader, model, criterion, optimizer, ep, idx, wandb_mode, device
                 batch_size = o.size(0)
                 num_joints = o.size(1)
                 out = o.view((batch_size, num_joints, -1))
-                vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
-                loss += criterion(o, targets, vis, vis_out)
+                loss += criterion(o, targets, vis)
             output = output[-1]
         else:  # single output
             batch_size = output.size(0)
             num_joints = output.size(1)
             out = output.view((batch_size, num_joints, -1))
-            vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
-            loss = criterion(output, targets, vis, vis_out)
+            loss = criterion(output, targets, vis)
         
-        # Extract individual loss for each subject    
-        sub_loss = loss_per_subject(pred=output, target=targets, vis=vis, vis_out=vis_out, criterion=criterion)
+        # # Extract individual loss for each subject    
+        # sub_loss = loss_per_subject(pred=output, target=targets, vis=vis, criterion=criterion)
         
-        if type(subjects) == list:
-            for i, subject in enumerate(subjects):
-                subjects_loss_dict[subject] = sub_loss[i] # add subjects name and individual loss to dict
-        else:
-            subjects_loss_dict[subjects] = sub_loss # add subjects name and individual loss to dict
+        # if type(subjects) == list:
+        #     for i, subject in enumerate(subjects):
+        #         subjects_loss_dict[subject] = sub_loss[i] # add subjects name and individual loss to dict
+        # else:
+        #     subjects_loss_dict[subjects] = sub_loss # add subjects name and individual loss to dict
         
         #if wandb_mode:
             # 🐝 log train_loss for each step to wandb
@@ -392,15 +390,13 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode, devi
                     batch_size = o.size(0)
                     num_joints = o.size(1)
                     out = o.view((batch_size, num_joints, -1))
-                    vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
-                    loss += criterion(o, target, vis, vis_out)
+                    loss += criterion(o, target, vis)
                 output = output[-1]
             else:  # single output
                 batch_size = output.size(0)
                 num_joints = output.size(1)
                 out = output.view((batch_size, num_joints, -1))
-                vis_out = torch.tensor([[[float(out[batch, joint].any() != 0)] for joint in range(num_joints)] for batch in range(batch_size)]).to(device, non_blocking=True) # Tracking non zeros predictions to compute false positive detections
-                loss = criterion(output, target, vis, vis_out)
+                loss = criterion(output, target, vis)
             acc = accuracy(output.cpu(), target.cpu(), idx)
             loss_dice = dice_loss(output, target)
             
