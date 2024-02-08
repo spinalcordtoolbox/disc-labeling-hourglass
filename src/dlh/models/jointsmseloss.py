@@ -42,18 +42,18 @@ class JointsMSELoss(nn.Module):
 
 class JointsMSEandBCELoss(nn.Module):
     def __init__(self, use_target_weight=False):
-        super(JointsMSELoss, self).__init__()
+        super(JointsMSEandBCELoss, self).__init__()
         self.MSEcriterion = nn.MSELoss(reduction='mean')
-        self.BCEcriterion = nn.BCELoss()
+        self.BCEcriterion = nn.BCEWithLogitsLoss()
         self.use_target_weight = use_target_weight
 
-    def forward(self, output, target, target_weight, vis_out):
+    def forward(self, output, target, target_weight):
         batch_size = output.size(0)
         num_joints = output.size(1)
         heatmaps_pred = output.reshape((batch_size, num_joints, -1)).split(1, 1)
         heatmaps_gt = target.reshape((batch_size, num_joints, -1)).split(1, 1)
         
-        loss = self.BCEcriterion(vis_out, target_weight) # init loss with false detections (non empty masks)
+        loss = 0 #self.BCEcriterion(vis_out, target_weight) # init loss with false detections (non empty masks)
 
         for idx in range(num_joints):
             heatmap_pred = heatmaps_pred[idx].squeeze()
@@ -63,6 +63,10 @@ class JointsMSEandBCELoss(nn.Module):
                     heatmap_pred.mul(target_weight[:, idx]),
                     heatmap_gt.mul(target_weight[:, idx])
                 )
+                loss += 0.5 * self.BCEcriterion(
+                    heatmap_pred.mul(torch.where(target_weight[:, idx]==0,1.,0)),
+                    heatmap_gt.mul(torch.zeros_like(target_weight[:, idx]))
+                ) 
             else:
                 loss += 0.5 * self.MSEcriterion(heatmap_pred, heatmap_gt)
 
