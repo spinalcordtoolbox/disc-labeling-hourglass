@@ -8,7 +8,7 @@ import json
 from torch.utils.data import DataLoader 
 import cv2
 
-from dlh.utils.train_utils import image_Dataset
+from dlh.utils.image_dataset import image_Dataset
 from dlh.utils.test_utils import CONTRAST, load_niftii_split
 
 def create_skeleton(args):
