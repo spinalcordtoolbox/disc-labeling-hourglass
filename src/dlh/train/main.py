@@ -219,6 +219,7 @@ def main(args):
         if wandb_mode:
             # 🐝 log valid_dice over the epoch to wandb
             wandb.log({"validation_dice/epoch": valid_dice})
+            wandb.log({"validation_acc/epoch": valid_acc})
         
         # remember best acc and save checkpoint
         if valid_acc > best_acc:
