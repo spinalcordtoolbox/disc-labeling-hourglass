@@ -19,7 +19,7 @@ class JointsMSELoss(nn.Module):
         self.MSEcriterion = nn.MSELoss(reduction='mean')
         self.use_target_weight = use_target_weight
 
-    def forward(self, output, target, target_weight, vis_out):
+    def forward(self, output, target, target_weight):
         batch_size = output.size(0)
         num_joints = output.size(1)
         heatmaps_pred = output.reshape((batch_size, num_joints, -1)).split(1, 1)
