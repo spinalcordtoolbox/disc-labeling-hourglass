@@ -27,7 +27,8 @@ from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
 from dlh.models import JointsMSELoss, JointsMSEandBCELoss
 from dlh.models.utils import AverageMeter, adjust_learning_rate, accuracy, dice_loss
-from dlh.utils.train_utils import image_Dataset, SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject
+from dlh.utils.train_utils import SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject
+from dlh.utils.image_dataset import image_Dataset
 from dlh.utils.test_utils import CONTRAST, load_niftii_split
 from dlh.utils.skeleton import create_skeleton
 from dlh.utils.config2parser import parser2config, config2parser
