@@ -344,9 +344,7 @@ class HeatmapLoss(torch.nn.Module):
         return l ## l of dim bsize
 
 
-def save_epoch_res_as_image2(inputs, outputs, targets, out_folder, epoch_num, target_th=0.4, pretext=False, wandb_mode=False):
-    max_epoch = 500
-    target_th = target_th + (epoch_num/max_epoch*0.2)
+def save_epoch_res_as_image2(inputs, outputs, targets, out_folder, epoch_num, target_th=0.6, pretext=False, wandb_mode=False):
     targets = targets.data.cpu().numpy()
     outputs = outputs.data.cpu().numpy()
     inputs = inputs.data.cpu().numpy()
@@ -361,7 +359,9 @@ def save_epoch_res_as_image2(inputs, outputs, targets, out_folder, epoch_num, ta
             y_colored = np.zeros([y.shape[1], y.shape[2], 3], dtype=np.uint8)
             y_all = np.zeros([y.shape[1], y.shape[2]], dtype=np.uint8)
             for ych, hue_i in zip(y, hues):
-                ych = ych/(np.max(np.max(ych))+0.00001)
+                minimum = np.min(ych)
+                maximum = np.max(ych)
+                ych = (ych - minimum) / (maximum - minimum + 0.00001)
                 ych[np.where(ych<target_th)] = 0
 
                 ych_hue = np.ones_like(ych, dtype=np.uint8)*hue_i

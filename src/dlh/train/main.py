@@ -406,7 +406,7 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode, devi
                 #wandb.log({"validation_dice/step": loss_dice})
 
             if i == 0:
-                txt, res, targets, preds = save_epoch_res_as_image2(input, output, target, out_folder, epoch_num=ep, target_th=0.5, wandb_mode=wandb_mode)
+                txt, res, targets, preds = save_epoch_res_as_image2(input, output, target, out_folder, epoch_num=ep, target_th=0.8, wandb_mode=wandb_mode)
                 
                 if wandb_mode:
                     # 🐝 log visuals for the first validation batch only in wandb
