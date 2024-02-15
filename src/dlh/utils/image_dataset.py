@@ -3,7 +3,7 @@ import numpy as np
 from torch.utils.data import Dataset
 import torch
 
-from dlh.utils.train_utils import rand_crop_fn, rand_locked_fov_fn, transform_fn
+from dlh.utils.train_utils import rand_crop_fn, rand_locked_fov_fn, transform_fn, transform2_fn
 
 
 class image_Dataset(Dataset):
