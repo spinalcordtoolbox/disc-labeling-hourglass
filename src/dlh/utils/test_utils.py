@@ -179,7 +179,7 @@ def closest_node(node, nodes):
 
 
 ##
-def load_niftii_split(config_data, num_channel, split='TRAINING'):
+def load_niftii_split(config_data, num_channel, nb_same_img=1, split='TRAINING'):
     '''
     This function output 5 lists corresponding to:
         - the middle slices extracted from the niftii images
@@ -222,13 +222,14 @@ def load_niftii_split(config_data, num_channel, split='TRAINING'):
             # Applying preprocessing steps
             image, mask, discs_labels, res_image, shape_image = apply_preprocessing(img_path, label_path, num_channel)
             if discs_labels and (max(np.array(discs_labels)[:,-1])+1-min(np.array(discs_labels)[:,-1]) == len(np.array(discs_labels))) and (np.array(discs_labels)[:,1] == np.sort(np.array(discs_labels)[:,1])).all(): # Check if file not empty or missing discs
-                imgs.append(image)
-                masks.append(mask)
-                discs_labels_list.append(discs_labels)
-                subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
-                subjects.append(subject)
-                resolutions.append(res_image)
-                shapes.append(shape_image)
+                for i in range(nb_same_img): # Add the same image and masks nb_same_img times when random fov/crop is used
+                    imgs.append(image)
+                    masks.append(mask)
+                    discs_labels_list.append(discs_labels)
+                    subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
+                    subjects.append(subject)
+                    resolutions.append(res_image)
+                    shapes.append(shape_image)
             else:
                 problematic_gt.append(label_path)
         
