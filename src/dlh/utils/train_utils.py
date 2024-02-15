@@ -132,6 +132,33 @@ def transform_fn(image, mask=None, use_flip=False):
         image = ToTensor()(pic=image)
         return image
 
+def transform2_fn(image, mask, use_flip=False):
+    image = normalize(image)
+    image = cv2.resize(image, (256, 256))
+    image = np.expand_dims(image, -1)
+
+    resized_mask = np.zeros((256, 256, mask.shape[-1]))
+    for i in range(mask.shape[-1]):
+        resized_mask[:,:,i] = cv2.resize(mask[:, :, i], (256, 256))
+    mask = resized_mask
+
+    ## extract joints for pose model
+    # Random horizontal flipping
+    if use_flip:
+        image, mask = RandomHorizontalFlip()(pic=image, mask=mask)
+    
+    # Random vertical flipping
+    # image,mask = RandomVerticalFlip()(image,mask)
+    # random90 flipping
+    temp_img = np.zeros((image.shape[0], image.shape[1], 2))
+    temp_img[:,:,0:1]= image
+    temp_img[:,:,1:2]= np.expand_dims(np.sum(mask, axis=-1),-1)
+    image = temp_img
+
+    # Transform to tensor
+    image, mask = ToTensor()(pic=image, mask=mask)
+    return image, mask
+
 def rand_crop_fn(image, mask, discs_labels, img_res, vis, min_discs=5, dy_disc=8, dx_disc=25):
     """
     Create a random crop for an image and its mask based on the number of visible discs.

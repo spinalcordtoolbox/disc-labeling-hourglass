@@ -89,7 +89,7 @@ class image_Dataset(Dataset):
             return (t_image, subject)
 
 class image_Dataset2(Dataset):
-    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, use_crop=False, use_lock_fov=False, load_mode='test'):  # initial logic happens like transform
+    def __init__(self, images, targets, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, use_crop=False, use_lock_fov=False, load_mode='test'):  # initial logic happens like transform
         
         self.images = images
         self.targets = targets
@@ -138,28 +138,25 @@ class image_Dataset2(Dataset):
 
     def transform(self, image, mask=None):
         if not mask is None:
-            image, mask = transform_fn(image, mask, use_flip=self.use_flip)
+            image, mask = transform2_fn(image, mask, use_flip=self.use_flip)
             return image, mask
         else:
-            image = transform_fn(image, mask, use_flip=self.use_flip)
+            image = transform2_fn(image, mask, use_flip=self.use_flip)
             return image
     
     def __getitem__(self, index):
         
         image = self.images[index]
-        if not self.targets is None:
-            mask = self.targets[index]
-            discs_labels = np.array(self.discs_labels[index])
-            img_res = np.array(self.img_res[index])
-            mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel) # Split discs into different classes
-            if self.use_crop:
-                image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=6)
-            if self.use_lock_fov:
-                image, mask, discs_labels, vis = self.rand_locked_fov(image, mask, discs_labels, img_res, vis, fov=(150,150))
-            t_image, t_mask = self.transform(image, mask)
-            vis = torch.FloatTensor(vis)
-        else:
-            t_image = self.transform(image, mask=None)
+        mask = self.targets[index]
+        discs_labels = np.array(self.discs_labels[index])
+        img_res = np.array(self.img_res[index])
+        mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel) # Split discs into different classes
+        if self.use_crop:
+            image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=6)
+        if self.use_lock_fov:
+            image, mask, discs_labels, vis = self.rand_locked_fov(image, mask, discs_labels, img_res, vis, fov=(150,150))
+        t_image, t_mask = self.transform(image, mask)
+        vis = torch.FloatTensor(vis)
             
         subject = self.subjects_names[index]
 
