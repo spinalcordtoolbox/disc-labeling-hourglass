@@ -199,7 +199,7 @@ def main(args):
     # train and eval
     lr = args.lr
     for epoch in range(args.start_epoch, args.epochs):
-        lr = adjust_learning_rate(optimizer, epoch, lr, args.schedule, args.gamma)
+        lr = adjust_learning_rate(optimizer, epoch, lr, [round(frac*args.epochs) for frac in args.schedule], args.gamma)
         print('\nEpoch: %d | LR: %.8f' % (epoch + 1, lr))
 
         # decay sigma
@@ -496,8 +496,8 @@ if __name__ == '__main__':
                         help='Resume the training from the last checkpoint (default=False)')  
     parser.add_argument('--attshow', default=False, type=bool,
                         help=' Show the attention map (default=False)') 
-    parser.add_argument('--epochs', default=1000, type=int, metavar='N',
-                        help='number of total epochs to run (default=1000)')
+    parser.add_argument('--epochs', default=200, type=int, metavar='N',
+                        help='number of total epochs to run (default=200)')
     parser.add_argument('--train-batch', default=3, type=int, metavar='N', 
                         help='train batchsize (default=3)')
     parser.add_argument('--val-batch', default=4, type=int, metavar='N',
@@ -517,8 +517,8 @@ if __name__ == '__main__':
                         metavar='W', help='weight decay (default=0)')
     parser.add_argument('--sigma-decay', type=float, default=0,
                         help='Sigma decay rate for each epoch. (default=0)')
-    parser.add_argument('--schedule', type=int, nargs='+', default=[60, 90],
-                        help='Decrease learning rate at these epochs. (default=[60, 90])')
+    parser.add_argument('--schedule', nargs='+', default=[0.6, 0.8],
+                        help='Decrease learning rate at these steps: fractions of the maximum number of epochs. (default=[0.6, 0.8])')
     parser.add_argument('--gamma', type=float, default=0.1,
                         help='LR is multiplied by gamma on schedule. (default=0.1)')
     parser.add_argument('-e', '--evaluate', default=False, type=bool,
