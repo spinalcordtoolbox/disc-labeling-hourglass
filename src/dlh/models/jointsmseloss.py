@@ -40,6 +40,7 @@ class JointsMSELoss(nn.Module):
 
         return loss / num_joints
 
+
 class JointsMSEandBCELoss(nn.Module):
     def __init__(self, use_target_weight=False):
         super(JointsMSEandBCELoss, self).__init__()
@@ -59,11 +60,11 @@ class JointsMSEandBCELoss(nn.Module):
             heatmap_pred = heatmaps_pred[idx].squeeze()
             heatmap_gt = heatmaps_gt[idx].squeeze()
             if self.use_target_weight:
-                loss += 0.5 * self.MSEcriterion(
+                loss += 1 * self.MSEcriterion(
                     heatmap_pred.mul(target_weight[:, idx]),
                     heatmap_gt.mul(target_weight[:, idx])
                 )
-                loss += 0.5 * self.BCEcriterion(
+                loss += 0.0005 * self.BCEcriterion(
                     heatmap_pred.mul(torch.where(target_weight[:, idx]==0,1.,0)),
                     heatmap_gt.mul(torch.zeros_like(target_weight[:, idx]))
                 ) 
