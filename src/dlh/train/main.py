@@ -126,9 +126,9 @@ def main(args):
     # create model
     print("==> creating model stacked hourglass, stacks={}, blocks={}".format(args.stacks, args.blocks))
     if args.att:
-        model = atthg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
+        model = atthg(in_channel=3, num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
     else:
-        model = hg(num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
+        model = hg(in_channel=3, num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
     
     # Set model to device
     if device.type=='cuda':
