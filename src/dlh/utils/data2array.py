@@ -66,7 +66,8 @@ def mask2label(path_label):
     """
     a = Image(path_label).change_orientation('RSP')
     nx, ny, nz, nt, px, py, pz, pt = a.dim
-    return [list(coord) for coord in a.getNonZeroCoordinates(sorting='value')], (py, pz), a.data.shape
+    discs_labels = [list(map(int, list(coord))) for coord in a.getNonZeroCoordinates(sorting='value')]
+    return discs_labels, (py, pz), a.data.shape
 
 
 def get_midNifti(path_im):
