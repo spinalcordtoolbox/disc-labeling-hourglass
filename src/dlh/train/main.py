@@ -99,6 +99,7 @@ def main(args):
                                        use_flip = True,
                                        use_crop = args.use_crop,
                                        use_lock_fov = args.use_lock_fov,
+                                       fov = args.fov,
                                        load_mode='train'
                                        )
 
@@ -111,6 +112,7 @@ def main(args):
                                     use_flip = False,
                                     use_crop = args.use_crop,
                                     use_lock_fov = args.use_lock_fov,
+                                    fov = args.fov,
                                     load_mode='val'
                                     )
 
@@ -506,6 +508,8 @@ if __name__ == '__main__':
                         help='Use random crop (default=False)')
     parser.add_argument('--use-lock-fov', action='store_true',
                         help='Use locked fov (default=False)')
+    parser.add_argument('--fov', type=tuple_type, default=(150,150),
+                        help='Fov size if --use-lock-fov is True (default=(150,150))')
     parser.add_argument('--solver', metavar='SOLVER', default='rms',
                         choices=['rms', 'adam'],
                         help='optimizers: choices=["rms", "adam"] (default="rms")')

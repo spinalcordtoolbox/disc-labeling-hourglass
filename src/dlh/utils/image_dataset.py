@@ -7,7 +7,7 @@ from dlh.utils.train_utils import rand_crop_fn, rand_locked_fov_fn, transform_fn
 
 
 class image_Dataset(Dataset):
-    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, use_crop=False, use_lock_fov=False, load_mode='test'):  # initial logic happens like transform
+    def __init__(self, images, targets=None, discs_labels=None, img_res=None, subjects_names=None, num_channel=None, use_flip=True, use_crop=False, use_lock_fov=False, fov=(150,150), load_mode='test'):  # initial logic happens like transform
         
         self.images = images
         self.targets = targets
@@ -19,6 +19,7 @@ class image_Dataset(Dataset):
         self.use_flip = use_flip
         self.use_crop = use_crop
         self.use_lock_fov = use_lock_fov
+        self.fov = fov
         self.load_mode = load_mode
 
     def __len__(self):  # return count of sample we have
@@ -73,7 +74,7 @@ class image_Dataset(Dataset):
             if self.use_crop:
                 image, mask, discs_labels, vis = self.rand_crop(image, mask, discs_labels, img_res, vis, min_discs=6)
             if self.use_lock_fov:
-                image, mask, discs_labels, vis = self.rand_locked_fov(image, mask, discs_labels, img_res, vis, fov=(150,150))
+                image, mask, discs_labels, vis = self.rand_locked_fov(image, mask, discs_labels, img_res, vis, fov=self.fov)
             t_image, t_mask = self.transform(image, mask)
             vis = torch.FloatTensor(vis)
         else:
