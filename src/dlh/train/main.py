@@ -27,7 +27,7 @@ from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
 from dlh.models import JointsMSELoss, JointsMSEandBCELoss
 from dlh.models.utils import AverageMeter, adjust_learning_rate, accuracy, dice_loss
-from dlh.utils.train_utils import SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject
+from dlh.utils.train_utils import SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject, tuple_type
 from dlh.utils.image_dataset import image_Dataset
 from dlh.utils.test_utils import CONTRAST, load_niftii_split
 from dlh.utils.skeleton import create_skeleton
@@ -498,7 +498,7 @@ if __name__ == '__main__':
                         help='Resume the training from the last checkpoint (default=False)')  
     parser.add_argument('--attshow', default=False, type=bool,
                         help=' Show the attention map (default=False)') 
-    parser.add_argument('--epochs', default=200, type=int, metavar='N',
+    parser.add_argument('--epochs', default=300, type=int, metavar='N',
                         help='number of total epochs to run (default=200)')
     parser.add_argument('--train-batch', default=3, type=int, metavar='N', 
                         help='train batchsize (default=3)')

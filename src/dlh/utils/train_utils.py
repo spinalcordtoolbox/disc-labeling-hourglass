@@ -232,7 +232,7 @@ def rand_crop_fn(image, mask, discs_labels, img_res, vis, min_discs=5, dy_disc=8
 
     return image[y_min:y_max,x_min:x_max], mask[y_min:y_max,x_min:x_max,:], included_discs, vis
 
-def rand_locked_fov_fn(image, mask, discs_labels, img_res, vis, fov=(100,100)):
+def rand_locked_fov_fn(image, mask, discs_labels, img_res, vis, fov=(150,150)):
     """
     Lock the fov to a defined size based on the resolution. If the image is smaller than the fov, zeros will be added. If
     the image is bigger, the position of the fov in the image will be random
@@ -542,3 +542,12 @@ def apply_preprocessing(img_path, target_path='', num_channel=25):
         return image, mask, discs_labels, res_image, image_in.shape
     else:
         return image, res_image, image_in.shape
+
+
+def tuple_type(strings):
+    '''
+    Copied from https://stackoverflow.com/questions/33564246/passing-a-tuple-as-command-line-argument
+    '''
+    strings = strings.replace("(", "").replace(")", "")
+    mapped_int = map(int, strings.split(","))
+    return tuple(mapped_int)
