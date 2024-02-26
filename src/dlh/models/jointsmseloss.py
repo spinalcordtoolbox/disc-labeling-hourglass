@@ -97,7 +97,10 @@ class JointsMSEandBCEandDICELoss(nn.Module):
         sum_gt = torch.sum(heatmaps_gt, axis=2)
         loss_mse = 0
         loss_bce = 0
-        loss_dice = 0
+        loss_dice = self.DICEcriterion(
+            heatmaps_pred,
+            heatmaps_gt
+        )
         for idx in range(num_joints):
             heatmap_pred = heatmaps_pred_tuple[idx].squeeze()
             heatmap_gt = heatmaps_gt_tuple[idx].squeeze()
@@ -109,11 +112,7 @@ class JointsMSEandBCEandDICELoss(nn.Module):
                 heatmap_pred.mul(torch.where(target_weight[:, idx]==0,1.,0)),
                 heatmap_gt.mul(torch.zeros_like(target_weight[:, idx]))
             )
-            loss_dice += self.DICEcriterion(
-                heatmap_pred.mul(torch.where(target_weight[:, idx]==0,1.,0)),
-                heatmap_gt.mul(torch.zeros_like(target_weight[:, idx]))
-            )
-        loss = 1*loss_mse + 0.005*loss_bce + 0*loss_dice
+        loss = 20*loss_mse + 0*loss_bce + 0.1*loss_dice
         return loss / num_joints
 
 
@@ -151,7 +150,10 @@ class diceloss(torch.nn.Module):
         super(diceLoss, self).init()
     def forward(self, pred, target):
         smooth = 1e-5
-        intersection = (pred * target).sum()
-        pred_sum = torch.sum(pred)
-        target_sum = torch.sum(target)
-        return 1 - ((2. * intersection + smooth) / (pred_sum + target_sum + smooth))
+
+        sum_pred = torch.sum(pred, axis=2)
+        sum_gt = torch.sum(target, axis=2)
+
+        intersection = (sum_pred*sum_gt).sum()
+
+        return ((2.0 * intersection + smooth) / (sum_pred.sum() + sum_gt.sum() + smooth))
