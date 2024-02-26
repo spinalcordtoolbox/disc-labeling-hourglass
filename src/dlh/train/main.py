@@ -44,7 +44,7 @@ def main(args):
     wandb_mode = args.wandb
 
     # select proper device to run
-    device = torch.device("cuda:1") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cudnn.benchmark = True 
 
     ## Set seed
