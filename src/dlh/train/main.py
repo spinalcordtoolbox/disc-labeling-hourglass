@@ -9,7 +9,7 @@ from __future__ import print_function, absolute_import
 import os
 import argparse
 import time
-#os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+#os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -25,7 +25,7 @@ import random
 
 from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
-from dlh.models import JointsMSELoss, JointsMSEandBCELoss
+from dlh.models import JointsMSELoss, JointsMSEandBCELoss, JointsMSEandBCEandDICELoss
 from dlh.models.utils import AverageMeter, adjust_learning_rate, accuracy, dice_loss
 from dlh.utils.train_utils import SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject, tuple_type
 from dlh.utils.image_dataset import image_Dataset
@@ -44,7 +44,7 @@ def main(args):
     wandb_mode = args.wandb
 
     # select proper device to run
-    device = torch.device("cuda") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:1") #torch.device("cuda" if torch.cuda.is_available() else "cpu")
     cudnn.benchmark = True 
 
     ## Set seed
@@ -144,8 +144,7 @@ def main(args):
         model = model.to(device=device)
     
     # define loss function (criterion) and optimizer
-    #criterion = JointsMSELoss().to(device)
-    criterion = JointsMSEandBCELoss(use_target_weight=True).to(device)
+    criterion = JointsMSEandBCEandDICELoss().to(device)
 
     if args.solver == 'rms':
         optimizer = torch.optim.RMSprop(
