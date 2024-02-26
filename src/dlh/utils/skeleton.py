@@ -2,7 +2,6 @@ from __future__ import print_function, absolute_import
 import os
 import sys
 import argparse
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 import numpy as np
 import json
 from torch.utils.data import DataLoader 

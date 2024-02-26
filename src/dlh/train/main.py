@@ -9,7 +9,6 @@ from __future__ import print_function, absolute_import
 import os
 import argparse
 import time
-#os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
