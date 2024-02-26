@@ -182,7 +182,7 @@ def closest_node(node, nodes):
 
 
 ##
-def load_niftii_split(config_data, num_channel, nb_same_img=1, split='TRAINING'):
+def load_niftii_split(config_data, num_channel, fov=None, split='TRAINING'):
     '''
     This function output 5 lists corresponding to:
         - the middle slices extracted from the niftii images
@@ -224,6 +224,10 @@ def load_niftii_split(config_data, num_channel, nb_same_img=1, split='TRAINING')
         else:
             # Applying preprocessing steps
             image, mask, discs_labels, res_image, shape_image = apply_preprocessing(img_path, label_path, num_channel)
+            if not fov is None:
+                nb_same_img = 5
+            else:
+                nb_same_img = 1
             if discs_labels and (max(np.array(discs_labels)[:,-1])+1-min(np.array(discs_labels)[:,-1]) == len(np.array(discs_labels))) and (np.array(discs_labels)[:,1] == np.sort(np.array(discs_labels)[:,1])).all(): # Check if file not empty or missing discs
                 for i in range(nb_same_img): # Add the same image and masks nb_same_img times when random fov/crop is used
                     imgs.append(image)
@@ -244,7 +248,8 @@ def load_niftii_split(config_data, num_channel, nb_same_img=1, split='TRAINING')
     # plot discs distribution
     plot_discs_distribution(discs_labels_list, out_path=f'discs_distribution_{split}.png')
 
-    print("Error with these ground truth\n" + '\n'.join(problematic_gt))
+    if problematic_gt:
+        print("Error with these ground truth\n" + '\n'.join(problematic_gt))
     return imgs, masks, discs_labels_list, subjects, resolutions, shapes
 
 def load_img_only(config_data, split='TESTING'):
