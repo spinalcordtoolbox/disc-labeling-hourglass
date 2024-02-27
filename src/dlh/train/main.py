@@ -519,8 +519,8 @@ if __name__ == '__main__':
                         metavar='W', help='weight decay (default=0)')
     parser.add_argument('--sigma-decay', type=float, default=0,
                         help='Sigma decay rate for each epoch. (default=0)')
-    parser.add_argument('--schedule', nargs='+', default=[0.6, 0.8],
-                        help='Decrease learning rate at these steps: fractions of the maximum number of epochs. (default=[0.6, 0.8])')
+    parser.add_argument('--schedule', nargs='+', default=[0.75, 0.85],
+                        help='Decrease learning rate at these steps: fractions of the maximum number of epochs. (default=[0.75, 0.85])')
     parser.add_argument('--gamma', type=float, default=0.1,
                         help='LR is multiplied by gamma on schedule. (default=0.1)')
     parser.add_argument('-e', '--evaluate', default=False, type=bool,
