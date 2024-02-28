@@ -224,8 +224,10 @@ def load_niftii_split(config_data, num_channel, fov=None, split='TRAINING'):
         else:
             # Applying preprocessing steps
             image, mask, discs_labels, res_image, shape_image = apply_preprocessing(img_path, label_path, num_channel)
+            # Calculate number of images to add based on cropped fov
             if not fov is None:
-                nb_same_img = 5
+                Y, X = round(fov[1]/res_image[0]), round(fov[0]/res_image[1])
+                nb_same_img = shape_image[0]//Y + shape_image[0]//X + 3
             else:
                 nb_same_img = 1
             if discs_labels and (max(np.array(discs_labels)[:,-1])+1-min(np.array(discs_labels)[:,-1]) == len(np.array(discs_labels))) and (np.array(discs_labels)[:,1] == np.sort(np.array(discs_labels)[:,1])).all(): # Check if file not empty or missing discs
