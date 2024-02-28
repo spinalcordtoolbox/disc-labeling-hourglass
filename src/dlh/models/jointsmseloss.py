@@ -112,7 +112,7 @@ class JointsMSEandBCEandDICELoss(nn.Module):
                 heatmap_pred.mul(torch.where(target_weight[:, idx]==0,1.,0)),
                 heatmap_gt.mul(torch.zeros_like(target_weight[:, idx]))
             )
-        loss = 1*loss_mse + 0.001*loss_bce + 0*loss_dice
+        loss = 1*loss_mse + 0.0004*loss_bce + 0*loss_dice
         return loss / num_joints
 
 
