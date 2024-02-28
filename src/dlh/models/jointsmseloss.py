@@ -105,14 +105,14 @@ class JointsMSEandBCEandDICELoss(nn.Module):
             heatmap_pred = heatmaps_pred_tuple[idx].squeeze()
             heatmap_gt = heatmaps_gt_tuple[idx].squeeze()
             loss_mse += self.MSEcriterion(
-                heatmap_pred,
-                heatmap_gt
+                heatmap_pred.mul(target_weight[:, idx]),
+                heatmap_gt.mul(target_weight[:, idx])
             )
             loss_bce += self.BCEcriterion(
                 heatmap_pred.mul(torch.where(target_weight[:, idx]==0,1.,0)),
                 heatmap_gt.mul(torch.zeros_like(target_weight[:, idx]))
             )
-        loss = 1*loss_mse + 0*loss_bce + 0*loss_dice
+        loss = 1*loss_mse + 0.001*loss_bce + 0*loss_dice
         return loss / num_joints
 
 
