@@ -271,18 +271,8 @@ def load_img_only(config_data, split='TESTING'):
     subjects = []
     shapes = []
     resolutions = []
-    for path in paths:
-        if 'DATASETS_PATH' in config_data.keys():
-            file_path = os.path.join(config_data['DATASETS_PATH'], path)
-        else:
-            file_path = path
-        # Check TYPE to get img_path
-        if config_data['TYPE'] == 'IMAGE':
-            img_path = file_path
-        elif config_data['TYPE'] == 'LABEL':
-            img_path = get_img_path_from_label_path(file_path)
-        else:
-            raise ValueError('TYPE error: The TYPE can only be "IMAGE" or "LABEL"')
+    for dic in paths:
+        img_path = os.path.join(config_data['DATASETS_PATH'], dic['IMAGE'])
 
         # Check if img_path exists
         if not os.path.exists(img_path):
@@ -297,7 +287,7 @@ def load_img_only(config_data, split='TESTING'):
             shapes.append(shape_image)
         
         # Plot progress
-        bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
+        bar.suffix  = f'{paths.index(dic)+1}/{len(paths)}'
         bar.next()
     bar.finish()
     return imgs, subjects, shapes, resolutions
