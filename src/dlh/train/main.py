@@ -143,7 +143,7 @@ def main(args):
         model = model.to(device=device)
     
     # define loss function (criterion) and optimizer
-    criterion = JointsMSEandBCEandDICELoss().to(device)
+    criterion = JointsMSELoss().to(device)
 
     if args.solver == 'rms':
         optimizer = torch.optim.RMSprop(
