@@ -37,3 +37,4 @@ typing_extensions==4.6.3
 urllib3==2.0.2
 wandb
 zipp==3.15.0
+nibabel
