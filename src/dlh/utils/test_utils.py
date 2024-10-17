@@ -9,9 +9,7 @@
 import os
 import cv2
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import torch
 from progress.bar import Bar
 from sklearn.utils.extmath import cartesian
@@ -213,12 +211,9 @@ def load_niftii_split(config_data, num_channel, fov=None, split='TRAINING'):
     shapes = []
     resolutions = []
     problematic_gt = []
-    for path in paths:
-        if 'DATASETS_PATH' in config_data.keys():
-            label_path = os.path.join(config_data['DATASETS_PATH'], path)
-        else:
-            label_path = path
-        img_path = get_img_path_from_label_path(label_path)
+    for dic in paths:
+        img_path = os.path.join(config_data['DATASETS_PATH'], dic['IMAGE'])
+        label_path = os.path.join(config_data['DATASETS_PATH'], dic['LABEL'])
         if not os.path.exists(img_path) or not os.path.exists(label_path):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
         else:
@@ -243,7 +238,7 @@ def load_niftii_split(config_data, num_channel, fov=None, split='TRAINING'):
                 problematic_gt.append(label_path)
         
         # Plot progress
-        bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
+        bar.suffix  = f'{paths.index(dic)+1}/{len(paths)}'
         bar.next()
     bar.finish()
 
