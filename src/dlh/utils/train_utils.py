@@ -11,8 +11,8 @@ import numpy as np
 import cv2
 from scipy import signal
 import copy
+from random import randint
 import torch
-from torch.utils.data import Dataset
 from torchvision.utils import make_grid
 
 from dlh.utils.transform_spe import RandomHorizontalFlip, ToTensor 
@@ -26,7 +26,7 @@ def normalize(arr):
 
 
 # Useful function to generate a Gaussian Function on given coordinates. Used to generate groudtruth.
-def label2MaskMap_GT(data, shape, c_dx=0, c_dy=0, radius=5, normalize=False):
+def label2MaskMap_GT(data, shape, res_im, c_dx=0, c_dy=0, radius=2, normalize=False):
     """
     Generate a Mask map from the coordenates
     :param shape: dimension of output
@@ -60,7 +60,7 @@ def label2MaskMap_GT(data, shape, c_dx=0, c_dy=0, radius=5, normalize=False):
 
     # Mean vector and covariance matrix
     mu = np.array([x, y])
-    Sigma = np.array([[radius, 0], [0, radius]])
+    Sigma = np.array([[radius/res_im[1], 0], [0, radius/res_im[0]]]) # we divide by the resolution to have pixels
 
     # The distribution on the variables X, Y packed into pos.
     Z = multivariate_gaussian(pos, mu, Sigma)
@@ -81,110 +81,241 @@ def label2MaskMap_GT(data, shape, c_dx=0, c_dy=0, radius=5, normalize=False):
     return np.asarray(maskMap)
 
 
-def extract_all(list_coord_label, shape_im):
+def extract_all(list_coord_label, res_im, shape_im):
     """
     Create groundtruth by creating gaussian Function for every ground truth points for a single image
     :param list_coord_label: list of ground truth coordinates
+    :param res_im: image resolution
     :param shape_im: shape of output image with zero padding
     :return: a 2d heatmap image.
     """
     shape_tmp = (1, shape_im[0], shape_im[1])
     final = np.zeros(shape_tmp[1:])
     for coord in list_coord_label:
-        train_lbs_tmp_mask = label2MaskMap_GT(coord, shape_tmp)
+        train_lbs_tmp_mask = label2MaskMap_GT(coord, shape_tmp, res_im)
         np.maximum(final, train_lbs_tmp_mask, out=final)
     return np.expand_dims(final, axis=0)
 
+def transform_fn(image, mask=None, use_flip=False):
+    image = normalize(image)
+    image = cv2.resize(image, (256, 256))
+    image = np.expand_dims(image, -1)
 
-class image_Dataset(Dataset):
-    def __init__(self, images, targets=None, discs_labels=None, subjects_names=None, num_channel=None, use_flip=True, load_mode='test'):  # initial logic happens like transform
-        
-        self.images = images
-        self.targets = targets
-        self.discs_labels = discs_labels
-        self.subjects_names = subjects_names
-        self.num_channel = num_channel
-        self.num_vis_joints = []
-        self.use_flip = use_flip
-        self.load_mode = load_mode
+    if not mask is None:
+        resized_mask = np.zeros((256, 256, mask.shape[-1]))
+        for i in range(mask.shape[-1]):
+            resized_mask[:,:,i] = cv2.resize(mask[:, :, i], (256, 256))
+        mask = resized_mask
 
-    def __len__(self):  # return count of sample we have
-        return len(self.images)
-    
-    def get_posedata(self, msk, discs_list, num_ch=11):
-        ys = msk.shape
-        ys_ch = np.zeros([ys[0], ys[1], num_ch])
-
-        if num_ch != 1:
-            msk_uint = np.uint8(np.where(msk>0.2, 1, 0))
-            num_labels, labels_im = cv2.connectedComponents(msk_uint)
-            self.num_vis_joints.append(num_labels-1) # the <0> label is the background
-
-            for i, num_disc in enumerate(discs_list):
-                if num_disc <= num_ch:
-                    num_label = i + 1  # label index cv2
-                    y_i = msk * np.where(labels_im == num_label, 1, 0)
-                    ys_ch[:,:, num_disc-1] = y_i
-        
-            vis = np.zeros((num_ch, 1))
-            vis[discs_list[0]-1:discs_list[-1]] = 1
-        else:
-            ys_ch[:,:, 0] = msk
-            vis = np.ones((num_ch, 1))
-        return ys_ch, vis
-
-    def transform(self, image, mask=None):
-        image = normalize(image[:, :, 0])
-        image = np.expand_dims(image, -1)
-
-        ## extract joints for pose model
-        # Random horizontal flipping
-        if self.use_flip:
-            if not mask is None:
-                image, mask = RandomHorizontalFlip()(pic=image, mask=mask)
-            else:
-                image = RandomHorizontalFlip()(pic=image)
-        
-        # Random vertical flipping
-        # image,mask = RandomVerticalFlip()(image,mask)
-        # random90 flipping
-        temp_img = np.zeros((image.shape[0], image.shape[1], 3))
-        temp_img[:,:,0:1]= image
-        temp_img[:,:,1:2]= image
-        temp_img[:,:,2:3]= image
-        image = temp_img
-
-        # Transform to tensor
+    ## extract joints for pose model
+    # Random horizontal flipping
+    if use_flip:
         if not mask is None:
-            image, mask = ToTensor()(pic=image, mask=mask)
-            return image, mask
+            image, mask = RandomHorizontalFlip()(pic=image, mask=mask)
         else:
-            image = ToTensor()(pic=image)
-            return image
-        
+            image = RandomHorizontalFlip()(pic=image)
     
-    def __getitem__(self, index):
-        
-        image = self.images[index]
-        image = np.expand_dims(image, axis= -1)
-        if not self.targets is None:
-            mask = self.targets[index]
-            discs_labels = np.array(self.discs_labels[index])
-            mask, vis  = self.get_posedata(mask, discs_labels[:,-1], num_ch=self.num_channel)
-            t_image, t_mask = self.transform(image, mask)
-            vis = torch.FloatTensor(vis)
-        else:
-            t_image = self.transform(image, mask=None)
-            
-        subject = self.subjects_names[index]
+    # Random vertical flipping
+    # image,mask = RandomVerticalFlip()(image,mask)
+    # random90 flipping
+    temp_img = np.zeros((image.shape[0], image.shape[1], 3))
+    temp_img[:,:,0:1]= image
+    temp_img[:,:,1:2]= image
+    temp_img[:,:,2:3]= image
+    image = temp_img
 
-        if self.load_mode == 'train':
-            return (t_image, t_mask, vis, subject)
-        if self.load_mode == 'val':
-            return (t_image, t_mask, vis)
-        if self.load_mode == 'test':
-            return (t_image, subject)
+    # Transform to tensor
+    if not mask is None:
+        image, mask = ToTensor()(pic=image, mask=mask)
+        return image, mask
+    else:
+        image = ToTensor()(pic=image)
+        return image
 
+def transform2_fn(image, mask, use_flip=False):
+    image = normalize(image)
+    image = cv2.resize(image, (256, 256))
+    image = np.expand_dims(image, -1)
+
+    resized_mask = np.zeros((256, 256, mask.shape[-1]))
+    for i in range(mask.shape[-1]):
+        resized_mask[:,:,i] = cv2.resize(mask[:, :, i], (256, 256))
+    mask = resized_mask
+
+    ## extract joints for pose model
+    # Random horizontal flipping
+    if use_flip:
+        image, mask = RandomHorizontalFlip()(pic=image, mask=mask)
+    
+    # Random vertical flipping
+    # image,mask = RandomVerticalFlip()(image,mask)
+    # random90 flipping
+    temp_img = np.zeros((image.shape[0], image.shape[1], 2))
+    temp_img[:,:,0:1]= image
+    temp_img[:,:,1:2]= np.expand_dims(np.sum(mask, axis=-1),-1)
+    image = temp_img
+
+    # Transform to tensor
+    image, mask = ToTensor()(pic=image, mask=mask)
+    return image, mask
+
+def rand_crop_fn(image, mask, discs_labels, img_res, vis, min_discs=5, dy_disc=8, dx_disc=25):
+    """
+    Create a random crop for an image and its mask based on the number of visible discs.
+    :param image: 2D image
+    :param mask: 2D mask corresponding to the image
+    :param discs_labels: Coordinates of the discs
+    :param img_res: Image resolution (mm/pixel).
+    :param min_discs: Minimum number of discs that have to be visible in the image.
+    :param dy_disc: Vertical size of an intervertebral disc.
+    :param dx_disc: Horizontal size of an intervertebral disc.
+    """
+    shape = image.shape
+    if len(discs_labels) > min_discs:
+        rand_num_discs = min_discs #randint(min_discs, len(discs_labels)) # Get a random number of discs to keep
+        rand_start_disc = randint(1, len(discs_labels)-rand_num_discs+1) # Get a random discs to start (the start disc is included)
+    else:
+        rand_num_discs = len(discs_labels)
+        rand_start_disc = 1
+    included_discs = discs_labels[rand_start_disc-1:rand_start_disc-1 + rand_num_discs]
+
+    # Set not included discs masks to 0
+    if mask.shape[-1] != 1:
+        mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
+        vis[~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1]),:]=0
+
+    # Get min and max discs coordinates
+    disc_min_num = included_discs[0,-1]
+    disc_max_num = included_discs[-1,-1]
+    x_min_coord = min(included_discs[:,2]) # Smallest x coordinate for an included disc
+    x_max_coord = max(included_discs[:,2]) # Biggest x coordinate for an included disc
+
+    # Get coordinates of the first and the last included discs
+    y_first_disc = included_discs[0,1]
+    y_last_disc = included_discs[-1,1]
+    x_first_disc = included_discs[0,2]
+    x_last_disc = included_discs[-1,2]
+
+    # Set vertical shift constraint with the last not included top (or bottom) discs or the maximum (or minimum) image size
+    if disc_min_num != discs_labels[0,-1]:
+        sup_max_shift = y_first_disc - discs_labels[np.where(discs_labels[:,-1]==disc_min_num-1)][:,1][0]
+        sup_max_shift = round(sup_max_shift - (dy_disc/2)*img_res[0]) if round(sup_max_shift - (dy_disc/2)*img_res[0])>=0 else round(sup_max_shift) # Deal with disc thickness
+    else:
+        sup_max_shift = y_first_disc
+
+    if disc_max_num != discs_labels[-1,-1]:
+        inf_max_shift =  discs_labels[np.where(discs_labels[:,-1]==disc_max_num+1)][:,1][0] - y_last_disc
+        inf_max_shift =  round(inf_max_shift - (dy_disc/2)*img_res[0]) if round(inf_max_shift - (dy_disc/2)*img_res[0])>=0 else round(inf_max_shift) # Deal with disc thickness
+    else:
+        inf_max_shift = shape[0] - y_last_disc
+
+    sup_min_shift = round((dy_disc/2)*img_res[0]) if round((dy_disc/2)*img_res[0])<sup_max_shift else 0
+    inf_min_shift = round((dy_disc/2)*img_res[0]) if round((dy_disc/2)*img_res[0])<inf_max_shift else 0
+
+    # Set horizontal shift constraint based on the first disc coordinates
+    left_max_shift = x_first_disc
+    left_min_shift = round(x_first_disc - x_min_coord + (dx_disc/6)*img_res[1]) if round(x_first_disc - x_min_coord + (dx_disc/6)*img_res[1]) <= left_max_shift else round(x_first_disc - x_min_coord)
+    right_max_shift = int(shape[1] - x_first_disc - 1)
+    right_min_shift = round(x_max_coord - x_first_disc + dx_disc*img_res[1]) if round(x_max_coord - x_first_disc + dx_disc*img_res[1]) <= right_max_shift else round(x_max_coord - x_first_disc)  # Add disc horizontal width
+    
+    # Set random shifts based on the constraints
+    x_shift_left = randint(left_min_shift, left_max_shift)
+    x_shift_right = randint(right_min_shift, right_max_shift)
+    y_shift_superior = randint(sup_min_shift, sup_max_shift)
+    y_shift_inferior = randint(inf_min_shift, inf_max_shift)
+
+    # Add random shift to the coodinates
+    y_min = round(y_first_disc - y_shift_superior)
+    y_max = round(y_last_disc + y_shift_inferior)
+    x_min = round(x_first_disc - x_shift_left)
+    x_max = round(x_first_disc + x_shift_right)
+
+    return image[y_min:y_max,x_min:x_max], mask[y_min:y_max,x_min:x_max,:], included_discs, vis
+
+def rand_locked_fov_fn(image, mask, discs_labels, img_res, vis, fov=(150,150)):
+    """
+    Lock the fov to a defined size based on the resolution. If the image is smaller than the fov, zeros will be added. If
+    the image is bigger, the position of the fov in the image will be random
+    :param fov: 2D image FOV in millimeter (X(mm),Y(mm))
+    :param image: 2D image
+    :param mask: mask corresponding to the image
+    :param discs_labels: Coordinates of the discs
+    :param img_res: Image resolution (mm/pixel).
+    :param vis: visible discs.
+    """
+    im_shape = image.shape
+    Y, X = round(fov[1]/img_res[0]), round(fov[0]/img_res[1])
+    if im_shape[0] > Y:
+        y_min = randint(0, im_shape[0]-Y)
+        y_max = y_min + Y-1
+        out_image = image[y_min:y_max+1,:]
+        out_mask = mask[y_min:y_max+1,:,:]
+        pad_y = 0
+    elif im_shape[0] == Y:
+        y_min = 0
+        y_max = im_shape[0]-1
+        out_image = image[:,:]
+        out_mask = mask[:,:,:]
+        pad_y = 0
+    else:
+        pad_y = Y - im_shape[0] # Calculate the total number of empty rows to add
+        top_zeros = pad_y//2
+        bottom_zeros = pad_y - top_zeros
+        out_image = np.zeros((Y,im_shape[1]))
+        out_mask = np.zeros((Y,im_shape[1],mask.shape[-1]))
+        out_image[top_zeros:Y-bottom_zeros,:]=image[:,:]
+        out_mask[top_zeros:Y-bottom_zeros,:,:]=mask[:,:,:]
+
+    
+    if im_shape[1] > X:
+        x_min = randint(0, im_shape[1]-X)
+        x_max = x_min + X-1
+        out_image = out_image[:,x_min:x_max+1]
+        out_mask = out_mask[:,x_min:x_max+1,:]
+        pad_x = 0
+    elif im_shape[1] == X:
+        x_min = 0
+        x_max = im_shape[0]-1
+        out_image = out_image[:,:]
+        out_mask = out_mask[:,:,:]
+        pad_x = 0
+    else:
+        pad_x = X - im_shape[1] # Calculate the number of empty columns to add
+        left_zeros = pad_x//2
+        right_zeros = pad_x - left_zeros
+        zer_image = np.zeros((Y,X))
+        zer_mask = np.zeros((Y,X,mask.shape[-1]))
+        zer_image[:,left_zeros:X-right_zeros]=out_image[:,:]
+        zer_mask[:,left_zeros:X-right_zeros,:]=out_mask[:,:,:]
+        out_image = zer_image[:,:]
+        out_mask = zer_mask[:,:,:]
+    
+    # Identify the included discs
+    if pad_x != 0:
+        x_range_min = 0
+        x_range_max = im_shape[1]-1
+    else:
+        x_range_min = x_min
+        x_range_max = x_max
+    
+    if pad_y != 0:
+        y_range_min = 0
+        y_range_max = im_shape[0]-1
+    else:
+        y_range_min = y_min
+        y_range_max = y_max
+    
+    included_discs = discs_labels[np.where((discs_labels[:,1]>=y_range_min) & \
+                                            (discs_labels[:,1]<=y_range_max) & \
+                                            (discs_labels[:,2]>=x_range_min) & \
+                                            (discs_labels[:,2]<=x_range_max))]
+    
+    # Set not included discs masks to 0
+    if mask.shape[-1] != 1:
+        mask[:,:, ~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1])]=0
+        vis[~np.in1d(np.arange(1, mask.shape[-1]+1), included_discs[:,-1]),:]=0
+    
+    return out_image, out_mask, included_discs, vis
 
 def bluring2D(data, kernel_halfsize=3, sigma=1.0):
     x = np.arange(-kernel_halfsize,kernel_halfsize+1,1)
@@ -213,9 +344,7 @@ class HeatmapLoss(torch.nn.Module):
         return l ## l of dim bsize
 
 
-def save_epoch_res_as_image2(inputs, outputs, targets, out_folder, epoch_num, target_th=0.4, pretext=False, wandb_mode=False):
-    max_epoch = 500
-    target_th = target_th + (epoch_num/max_epoch*0.2)
+def save_epoch_res_as_image2(inputs, outputs, targets, out_folder, epoch_num, target_th=0.6, pretext=False, wandb_mode=False):
     targets = targets.data.cpu().numpy()
     outputs = outputs.data.cpu().numpy()
     inputs = inputs.data.cpu().numpy()
@@ -230,7 +359,9 @@ def save_epoch_res_as_image2(inputs, outputs, targets, out_folder, epoch_num, ta
             y_colored = np.zeros([y.shape[1], y.shape[2], 3], dtype=np.uint8)
             y_all = np.zeros([y.shape[1], y.shape[2]], dtype=np.uint8)
             for ych, hue_i in zip(y, hues):
-                ych = ych/(np.max(np.max(ych))+0.00001)
+                minimum = np.min(ych)
+                maximum = np.max(ych)
+                ych = (ych - minimum) / (maximum - minimum + 0.00001)
                 ych[np.where(ych<target_th)] = 0
 
                 ych_hue = np.ones_like(ych, dtype=np.uint8)*hue_i
@@ -369,7 +500,7 @@ def save_attention(inputs, outputs, targets, att, target_th=0.5):
     res = np.transpose(trgts.numpy(), (1,2,0))
     cv2.imwrite(txt, res)
 
-def loss_per_subject(pred, target, vis, vis_out, criterion):
+def loss_per_subject(pred, target, vis, criterion):
     '''
     Return a list of loss corresponding to each image in the batch
     
@@ -380,31 +511,43 @@ def loss_per_subject(pred, target, vis, vis_out, criterion):
     if type(pred) == list:  # multiple output
         for p in pred:
             for idx in range(p.shape[0]):
-                losses.append(criterion(p[idx], target[idx], vis[idx], vis_out[idx]).item())
+                losses.append(criterion(p[idx], target[idx], vis[idx]).item())
     else:  # single output
         for idx in range(pred.shape[0]):
-            losses.append(criterion(torch.unsqueeze(pred[idx], 0), torch.unsqueeze(target[idx], 0), torch.unsqueeze(vis[idx], 0), torch.unsqueeze(vis_out[idx], 0)).item())
+            losses.append(criterion(torch.unsqueeze(pred[idx], 0), torch.unsqueeze(target[idx], 0), torch.unsqueeze(vis[idx], 0)).item())
     return losses
 
-def apply_preprocessing(img_path, target_path=''):
+def apply_preprocessing(img_path, target_path='', num_channel=25):
     '''
     Load and apply preprocessing steps on input data
     :param img_path: Path to Niftii image
     :param target_path: Path to Niftii target mask
     '''
-    image_in = get_midNifti(img_path)
+    image_in, res_image, shape_image = get_midNifti(img_path)
     image = (image_in - np.mean(image_in))/(np.std(image_in)+1e-100) # Equivalent to images_normalization function in dlh.utils.data2array
     image = normalize(image)
-    image = cv2.resize(image, (256, 256))
     image = image.astype(np.float32)
         
     if target_path != '':
-        discs_labels = mask2label(target_path)
-        discs_labels = [coord for coord in discs_labels if coord[-1] < 25] # Remove labels superior to 25, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
-        mask = extract_all(discs_labels, shape_im=image_in.shape)
+        discs_labels, res_target, shape_target = mask2label(target_path)
+        if res_image != res_target or shape_image != shape_target:
+            raise ValueError(f'Image {img_path} and target {target_path} have different shapes or resolutions')
+        if num_channel != 1:
+            discs_labels = [coord for coord in discs_labels if coord[-1] < num_channel+1] # Remove labels superior to the number of channels, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
+        else:
+            discs_labels = [coord for coord in discs_labels if coord[-1] < 26] # Remove labels superior to the number of channels, especially 49 and 50 that correspond to the pontomedullary groove (49) and junction (50)
+        mask = extract_all(discs_labels, res_image, shape_im=image_in.shape)
         mask = normalize(mask[0,:,:])
-        mask = cv2.resize(mask, (256, 256))
         mask = mask.astype(np.float32)
-        return image, mask, discs_labels
+        return image, mask, discs_labels, res_image, image_in.shape
     else:
-        return image
+        return image, res_image, image_in.shape
+
+
+def tuple_type(strings):
+    '''
+    Copied from https://stackoverflow.com/questions/33564246/passing-a-tuple-as-command-line-argument
+    '''
+    strings = strings.replace("(", "").replace(")", "")
+    mapped_int = map(int, strings.split(","))
+    return tuple(mapped_int)

@@ -9,6 +9,7 @@
 import os
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 import torch
 from progress.bar import Bar
 from sklearn.utils.extmath import cartesian
@@ -179,13 +180,14 @@ def closest_node(node, nodes):
 
 
 ##
-def load_niftii_split(config_data, split='TRAINING'):
+def load_niftii_split(config_data, num_channel, fov=None, split='TRAINING'):
     '''
     This function output 5 lists corresponding to:
         - the middle slices extracted from the niftii images
         - the corresponding 2D masks with discs labels
         - the discs labels
         - the subjects names
+        - image resolutions
         - the image slice shape
     
     :param config_data: Config dict where every label used for TRAINING, VALIDATION and/or TESTING has its path specified
@@ -207,30 +209,45 @@ def load_niftii_split(config_data, split='TRAINING'):
     discs_labels_list = []
     subjects = []
     shapes = []
-    for path in paths:
-        if 'DATASETS_PATH' in config_data.keys():
-            label_path = os.path.join(config_data['DATASETS_PATH'], path)
-        else:
-            label_path = path
-        img_path = get_img_path_from_label_path(label_path)
+    resolutions = []
+    problematic_gt = []
+    for dic in paths:
+        img_path = os.path.join(config_data['DATASETS_PATH'], dic['IMAGE'])
+        label_path = os.path.join(config_data['DATASETS_PATH'], dic['LABEL'])
         if not os.path.exists(img_path) or not os.path.exists(label_path):
             print(f'Error while loading subject\n {img_path} or {label_path} might not exist')
         else:
             # Applying preprocessing steps
-            image, mask, discs_labels = apply_preprocessing(img_path, label_path)
-            if discs_labels: # Check if file not empty
-                imgs.append(image)
-                masks.append(mask)
-                discs_labels_list.append(discs_labels)
-                subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
-                subjects.append(subject)
-                shapes.append(get_midNifti(img_path).shape)
+            image, mask, discs_labels, res_image, shape_image = apply_preprocessing(img_path, label_path, num_channel)
+            # Calculate number of images to add based on cropped fov
+            if not fov is None:
+                Y, X = round(fov[1]/res_image[0]), round(fov[0]/res_image[1])
+                nb_same_img = shape_image[0]//Y + shape_image[0]//X + 3
+            else:
+                nb_same_img = 1
+            if discs_labels and (max(np.array(discs_labels)[:,-1])+1-min(np.array(discs_labels)[:,-1]) == len(np.array(discs_labels))) and (np.array(discs_labels)[:,1] == np.sort(np.array(discs_labels)[:,1])).all(): # Check if file not empty or missing discs
+                for i in range(nb_same_img): # Add the same image and masks nb_same_img times when random fov/crop is used
+                    imgs.append(image)
+                    masks.append(mask)
+                    discs_labels_list.append(discs_labels)
+                    subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
+                    subjects.append(subject)
+                    resolutions.append(res_image)
+                    shapes.append(shape_image)
+            else:
+                problematic_gt.append(label_path)
         
         # Plot progress
-        bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
+        bar.suffix  = f'{paths.index(dic)+1}/{len(paths)}'
         bar.next()
     bar.finish()
-    return imgs, masks, discs_labels_list, subjects, shapes
+
+    # plot discs distribution
+    plot_discs_distribution(discs_labels_list, out_path=f'discs_distribution_{split}.png')
+
+    if problematic_gt:
+        print("Error with these ground truth\n" + '\n'.join(problematic_gt))
+    return imgs, masks, discs_labels_list, subjects, resolutions, shapes
 
 def load_img_only(config_data, split='TESTING'):
     '''
@@ -238,6 +255,7 @@ def load_img_only(config_data, split='TESTING'):
         - the middle slice extracted from the niftii images
         - the subjects names
         - the images shapes
+        - image resolutions
     
     :param config_data: Config dict where every image used for TRAINING, VALIDATION and/or TESTING has its path specified
     :param split: Split of the data needed ('TRAINING', 'VALIDATION', 'TESTING')
@@ -252,32 +270,65 @@ def load_img_only(config_data, split='TESTING'):
     imgs = []
     subjects = []
     shapes = []
-    for path in paths:
-        if 'DATASETS_PATH' in config_data.keys():
-            file_path = os.path.join(config_data['DATASETS_PATH'], path)
-        else:
-            file_path = path
-        # Check TYPE to get img_path
-        if config_data['TYPE'] == 'IMAGE':
-            img_path = file_path
-        elif config_data['TYPE'] == 'LABEL':
-            img_path = get_img_path_from_label_path(file_path)
-        else:
-            raise ValueError('TYPE error: The TYPE can only be "IMAGE" or "LABEL"')
+    resolutions = []
+    for dic in paths:
+        img_path = os.path.join(config_data['DATASETS_PATH'], dic['IMAGE'])
 
         # Check if img_path exists
         if not os.path.exists(img_path):
             print(f'Error while loading subject\n {img_path} does not exist')
         else:
             # Applying preprocessing steps
-            image = apply_preprocessing(img_path)
+            image, res_image, shape_image = apply_preprocessing(img_path)
             imgs.append(image)
             subject, sessionID, filename, contrast, echoID, acquisition = fetch_subject_and_session(img_path)
             subjects.append(subject)
-            shapes.append(get_midNifti(img_path).shape)
+            resolutions.append(res_image)
+            shapes.append(shape_image)
         
         # Plot progress
-        bar.suffix  = f'{paths.index(path)+1}/{len(paths)}'
+        bar.suffix  = f'{paths.index(dic)+1}/{len(paths)}'
         bar.next()
     bar.finish()
-    return imgs, subjects, shapes
+    return imgs, subjects, shapes, resolutions
+
+
+def save_bar(names, values, output_path, x_axis, y_axis):
+    '''
+    Create a histogram plot
+    :param names: String list of the names
+    :param values: Values associated with the names
+    :param output_path: Output path (string)
+    :param x_axis: x-axis name
+    :param y_axis: y-axis name
+
+    '''
+            
+    # Set position of bar on X axis
+    fig = plt.figure(figsize = (len(names)//2, 5))
+ 
+    # creating the bar plot
+    plt.bar(names, values, width = 0.4)
+    
+    plt.xlabel(x_axis)
+    plt.ylabel(y_axis)
+    plt.xticks(names)
+    plt.title("Discs distribution")
+    plt.savefig(output_path)
+
+
+def plot_discs_distribution(discs_labels_list, out_path):
+    plot_discs = {}
+    for discs_list in discs_labels_list:
+        for disc_coords in discs_list:
+            num_disc = disc_coords[-1]
+            if not num_disc in plot_discs.keys():
+                plot_discs[num_disc] = 1
+            else:
+                plot_discs[num_disc] += 1
+    # Sort dict
+    plot_discs = dict(sorted(plot_discs.items()))
+    names, values = list(plot_discs.keys()), list(plot_discs.values())
+    # Plot distribution
+    save_bar(names, values, out_path, x_axis='Discs number', y_axis='Quantity')
+    

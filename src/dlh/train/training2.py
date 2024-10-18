@@ -9,6 +9,7 @@ from __future__ import print_function, absolute_import
 import os
 import argparse
 import time
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
@@ -24,10 +25,10 @@ import random
 
 from dlh.models.hourglass import hg
 from dlh.models.atthourglass import atthg
-from dlh.models import JointsMSELoss, JointsMSEandBCELoss, JointsMSEandBCEandDICELoss
+from dlh.models import JointsMSELoss, JointsMSEandBCELoss, JointsBCELoss
 from dlh.models.utils import AverageMeter, adjust_learning_rate, accuracy, dice_loss
-from dlh.utils.train_utils import SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject, tuple_type
-from dlh.utils.image_dataset import image_Dataset
+from dlh.utils.train_utils import SaveOutput, save_epoch_res_as_image2, save_attention, loss_per_subject
+from dlh.utils.image_dataset import image_Dataset2
 from dlh.utils.test_utils import CONTRAST, load_niftii_split
 from dlh.utils.skeleton import create_skeleton
 from dlh.utils.config2parser import parser2config, config2parser
@@ -75,13 +76,8 @@ def main(args):
     
     # Loading images for training and validation
     print('loading images...')
-    if args.use_lock_fov:
-        fov = args.fov
-    else:
-        fov = None
     imgs_train, masks_train, discs_labels_train, subjects_train, res_train, _ = load_niftii_split(config_data=config_data,
-                                                                                       num_channel=args.ndiscs,
-                                                                                       fov=fov,
+                                                                                       num_channel=args.ndiscs, 
                                                                                        split='TRAINING')
     
     imgs_val, masks_val, discs_labels_val, subjects_val, res_val, _ = load_niftii_split(config_data=config_data,
@@ -89,7 +85,7 @@ def main(args):
                                                                                split='VALIDATION')
     
     ## Create a dataset loader
-    full_dataset_train = image_Dataset(images=imgs_train, 
+    full_dataset_train = image_Dataset2(images=imgs_train, 
                                        targets=masks_train,
                                        discs_labels=discs_labels_train,
                                        img_res=res_train,
@@ -98,11 +94,10 @@ def main(args):
                                        use_flip = True,
                                        use_crop = args.use_crop,
                                        use_lock_fov = args.use_lock_fov,
-                                       fov = args.fov,
                                        load_mode='train'
                                        )
 
-    full_dataset_val = image_Dataset(images=imgs_val, 
+    full_dataset_val = image_Dataset2(images=imgs_val, 
                                     targets=masks_val,
                                     discs_labels=discs_labels_val,
                                     img_res=res_val,
@@ -111,7 +106,6 @@ def main(args):
                                     use_flip = False,
                                     use_crop = args.use_crop,
                                     use_lock_fov = args.use_lock_fov,
-                                    fov = args.fov,
                                     load_mode='val'
                                     )
 
@@ -132,9 +126,9 @@ def main(args):
     # create model
     print("==> creating model stacked hourglass, stacks={}, blocks={}".format(args.stacks, args.blocks))
     if args.att:
-        model = atthg(in_channel=3, num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
+        model = atthg(in_channel=2, num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
     else:
-        model = hg(in_channel=3, num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
+        model = hg(in_channel=2, num_stacks=args.stacks, num_blocks=args.blocks, num_classes=args.ndiscs)
     
     # Set model to device
     if device.type=='cuda':
@@ -143,7 +137,8 @@ def main(args):
         model = model.to(device=device)
     
     # define loss function (criterion) and optimizer
-    criterion = JointsMSELoss().to(device)
+    #criterion = JointsMSELoss().to(device)
+    criterion = JointsBCELoss().to(device)
 
     if args.solver == 'rms':
         optimizer = torch.optim.RMSprop(
@@ -167,7 +162,7 @@ def main(args):
         crop = '_crop' if args.use_crop else ''
         lockfov = '_lockfov' if args.use_lock_fov else ''
         att = '_att' if args.att else ''
-        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+        model.load_state_dict(torch.load(f'{weight_folder}/model2_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
        
     # evaluation only
     if args.evaluate:
@@ -176,7 +171,7 @@ def main(args):
         crop = '_crop' if args.use_crop else ''
         lockfov = '_lockfov' if args.use_lock_fov else ''
         att = '_att' if args.att else ''
-        model.load_state_dict(torch.load(f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
+        model.load_state_dict(torch.load(f'{weight_folder}/model2_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}', map_location='cpu')['model_weights'])
         
         if args.attshow:
             loss, acc = show_attention(MRI_val_loader, model, device)
@@ -199,7 +194,7 @@ def main(args):
     # train and eval
     lr = args.lr
     for epoch in range(args.start_epoch, args.epochs):
-        lr = adjust_learning_rate(optimizer, epoch, lr, [round(frac*args.epochs) for frac in args.schedule], args.gamma)
+        lr = adjust_learning_rate(optimizer, epoch, lr, args.schedule, args.gamma)
         print('\nEpoch: %d | LR: %.8f' % (epoch + 1, lr))
 
         # decay sigma
@@ -226,7 +221,6 @@ def main(args):
             # 🐝 log valid_dice over the epoch to wandb
             wandb.log({"validation_dice/epoch": valid_dice})
             wandb.log({"validation_acc/epoch": valid_acc})
-            wandb.log({"validation_loss/epoch": valid_loss})
         
         # remember best acc and save checkpoint
         if valid_acc > best_acc:
@@ -234,7 +228,7 @@ def main(args):
             lockfov = '_lockfov' if args.use_lock_fov else ''
             att = '_att' if args.att else ''
             state = copy.deepcopy({'model_weights': model.state_dict()})
-            torch.save(state, f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
+            torch.save(state, f'{weight_folder}/model2_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}')
             best_acc = valid_acc
             best_acc_epoch = epoch + 1
     
@@ -246,7 +240,7 @@ def main(args):
         crop = '_crop' if args.use_crop else ''
         lockfov = '_lockfov' if args.use_lock_fov else ''
         att = '_att' if args.att else ''
-        best_model_path = f'{weight_folder}/model_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
+        best_model_path = f'{weight_folder}/model2_{contrast_str}{att}{lockfov}{crop}_stacks_{args.stacks}_ndiscs_{args.ndiscs}'
         model_artifact = wandb.Artifact("hourglass", 
                                         type="model",
                                         description="Hourglass network for intervertebral discs labeling",
@@ -412,7 +406,7 @@ def validate(val_loader, model, criterion, ep, idx, out_folder, wandb_mode, devi
                 #wandb.log({"validation_dice/step": loss_dice})
 
             if i == 0:
-                txt, res, targets, preds = save_epoch_res_as_image2(input, output, target, out_folder, epoch_num=ep, target_th=0.8, wandb_mode=wandb_mode)
+                txt, res, targets, preds = save_epoch_res_as_image2(input, output, target, out_folder, epoch_num=ep, target_th=0.5, wandb_mode=wandb_mode)
                 
                 if wandb_mode:
                     # 🐝 log visuals for the first validation batch only in wandb
@@ -497,8 +491,8 @@ if __name__ == '__main__':
                         help='Resume the training from the last checkpoint (default=False)')  
     parser.add_argument('--attshow', default=False, type=bool,
                         help=' Show the attention map (default=False)') 
-    parser.add_argument('--epochs', default=300, type=int, metavar='N',
-                        help='number of total epochs to run (default=200)')
+    parser.add_argument('--epochs', default=1000, type=int, metavar='N',
+                        help='number of total epochs to run (default=1000)')
     parser.add_argument('--train-batch', default=3, type=int, metavar='N', 
                         help='train batchsize (default=3)')
     parser.add_argument('--val-batch', default=4, type=int, metavar='N',
@@ -507,8 +501,6 @@ if __name__ == '__main__':
                         help='Use random crop (default=False)')
     parser.add_argument('--use-lock-fov', action='store_true',
                         help='Use locked fov (default=False)')
-    parser.add_argument('--fov', type=tuple_type, default=(150,150),
-                        help='Fov size if --use-lock-fov is True (default=(150,150))')
     parser.add_argument('--solver', metavar='SOLVER', default='rms',
                         choices=['rms', 'adam'],
                         help='optimizers: choices=["rms", "adam"] (default="rms")')
@@ -520,8 +512,8 @@ if __name__ == '__main__':
                         metavar='W', help='weight decay (default=0)')
     parser.add_argument('--sigma-decay', type=float, default=0,
                         help='Sigma decay rate for each epoch. (default=0)')
-    parser.add_argument('--schedule', nargs='+', default=[0.75, 0.85],
-                        help='Decrease learning rate at these steps: fractions of the maximum number of epochs. (default=[0.75, 0.85])')
+    parser.add_argument('--schedule', type=int, nargs='+', default=[60, 90],
+                        help='Decrease learning rate at these epochs. (default=[60, 90])')
     parser.add_argument('--gamma', type=float, default=0.1,
                         help='LR is multiplied by gamma on schedule. (default=0.1)')
     parser.add_argument('-e', '--evaluate', default=False, type=bool,
@@ -559,7 +551,7 @@ if __name__ == '__main__':
         # Create file name
         lockfov = '_lockfov' if args.use_lock_fov else ''
         crop = '_crop' if args.use_crop else ''
-        json_name = f'config_hg_{args.train_contrast}{lockfov}{crop}_ndiscs_{args.ndiscs}.json'
+        json_name = f'config2_hg_{args.train_contrast}{lockfov}{crop}_ndiscs_{args.ndiscs}.json'
         
         # Remove config-data and config-train from parser Namespace object
         saved_args = copy.copy(args) # To do a REAL copy of the object
@@ -580,7 +572,7 @@ if __name__ == '__main__':
         # Create file name
         lockfov = '_lockfov' if args.use_lock_fov else ''
         crop = '_crop' if args.use_crop else ''
-        json_name = f'config_hg_{args.train_contrast}{lockfov}{crop}_ndiscs_{args.ndiscs}.json'
+        json_name = f'config2_hg_{args.train_contrast}{lockfov}{crop}_ndiscs_{args.ndiscs}.json'
 
         # Create a new json updated in the weight folder
         saved_args = copy.copy(args)

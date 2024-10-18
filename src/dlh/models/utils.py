@@ -96,14 +96,22 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
         
             
-def dice_loss(input, target):
-    smooth = 1.0
+def dice_loss(inputs, target):
+    smooth = 1e-5
 
-    iflat = input.view(-1)
-    tflat = target.view(-1)
-    intersection = (iflat * tflat).sum()
+    batch_size = inputs.size(0)
+    num_joints = inputs.size(1)
+    heatmaps_pred = inputs.reshape((batch_size, num_joints, -1))
+    heatmaps_gt = target.reshape((batch_size, num_joints, -1))
+    sum_pred = torch.sum(heatmaps_pred, axis=2)
+    sum_gt = torch.sum(heatmaps_gt, axis=2)
 
-    return ((2.0 * intersection + smooth) / (iflat.sum() + tflat.sum() + smooth))
+    class_pred = torch.where(sum_pred != 0, 1, 0)
+    class_gt = torch.where(sum_gt != 0, 1, 0)
+
+    intersection = (class_pred*class_gt).sum()
+
+    return ((2.0 * intersection + smooth) / (class_pred.sum() + class_gt.sum() + smooth))
 
 
     
