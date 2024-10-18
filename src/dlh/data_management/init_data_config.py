@@ -44,7 +44,7 @@ def init_data_config(args):
     elif args.type == 'LABEL-SEG':
         seg_suffix = args.suffix_seg
         if not seg_suffix:
-            ValueError(f'When using the type LABEL-SEG, please specify the suffix of the associated segmentation using the flag "--suffix-seg"')
+            raise ValueError(f'When using the type LABEL-SEG, please specify the suffix of the associated segmentation using the flag "--suffix-seg"')
         label_paths = file_paths
         img_paths = [get_img_path_from_label_path(lp) for lp in label_paths]
         seg_paths = [get_seg_path_from_label_path(lp, seg_suffix=seg_suffix) for lp in label_paths]
